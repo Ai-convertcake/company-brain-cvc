@@ -18,6 +18,14 @@ export function isApprovedLearningChannel(
 		.some((id) => id.trim() !== "" && id.trim() === channelId)
 }
 
+const FIRST_READ_DAYS = 30
+
+// Never read further back than 30 days, even for a channel with no saved position.
+export function observeStartTs(cursor: string, nowMs: number): string {
+	const earliest = Math.floor(nowMs / 1000) - FIRST_READ_DAYS * 24 * 60 * 60
+	return Number(cursor) > earliest ? cursor : String(earliest)
+}
+
 // No scope means company-wide memory, which must never hold a private channel.
 export function observedMemoryScope(channelId: string, isPrivate: boolean) {
 	return isPrivate

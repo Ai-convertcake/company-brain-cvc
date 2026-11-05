@@ -10,6 +10,7 @@ import { BRAIN_CAPTURE_POLICY } from "../memory/profile-config"
 import {
 	isApprovedLearningChannel,
 	observedMemoryScope,
+	observeStartTs,
 } from "../tools/mcp/shared-access"
 import { MAX_BRAIN_OBSERVE_DOCS, personBrainTagKey } from "../memory/tags"
 import {
@@ -781,7 +782,7 @@ async function spoolChannelPage(
 		botToken,
 		payload.channel,
 		{
-			oldest: cursor || undefined,
+			oldest: observeStartTs(cursor, Date.now()),
 			latest: scan?.latest_ts,
 			inclusive: false,
 			maxMessages: MAX_NEW_MESSAGES,
@@ -1111,6 +1112,11 @@ export async function runChannelObserve(
 		}
 
 		const cursor = getObserveCursor(agent, payload)
+		// Drops anything an earlier, unlimited read queued before it reaches the model.
+		agent.sql`
+			DELETE FROM brain_channel_observe_pending
+			WHERE channel_key = ${key} AND ts < ${observeStartTs("", Date.now())}
+		`
 		const scanActive = Boolean(
 			agent.sql<{ latest_ts: string }>`
 				SELECT latest_ts FROM brain_channel_observe_scan WHERE channel_key = ${key}
