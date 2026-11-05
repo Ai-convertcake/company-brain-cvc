@@ -2,7 +2,9 @@ import type { SharedV3ProviderOptions } from "@ai-sdk/provider"
 import {
 	getModelInfo,
 	getModelReasoningProviderOptions,
+	isOpenRouterModelId,
 	type ModelReasoningEffort,
+	type OpenRouterModelId,
 	type SupportedModel,
 	type SupportedModelProvider,
 } from "@/lib/model-registry"
@@ -10,9 +12,9 @@ import {
 export type Effort = ModelReasoningEffort
 
 export type BrainModelProvider = SupportedModelProvider
-export type BrainProfileModel = SupportedModel
+export type BrainProfileModel = SupportedModel | OpenRouterModelId
 
-export type ModelProfile<ModelName extends BrainProfileModel = SupportedModel> =
+export type ModelProfile<ModelName extends BrainProfileModel = BrainProfileModel> =
 	{
 		name: ModelName
 		provider: BrainModelProvider
@@ -60,9 +62,9 @@ export const BRAIN_MAIN_EFFORT_CHOICES = [
 ] as const satisfies readonly (Effort | "auto")[]
 
 export type BrainModelConfig = {
-	main?: SupportedModel
+	main?: BrainProfileModel
 	mainEffort?: Effort | "auto"
-	triage?: SupportedModel
+	triage?: BrainProfileModel
 	triageEffort?: Effort
 }
 
@@ -76,10 +78,11 @@ function readBrainModels(metadata: unknown): BrainModelConfig {
 	return isRecord(brainModels) ? (brainModels as BrainModelConfig) : {}
 }
 
-export function resolveBrainMainModel(metadata: unknown): SupportedModel {
+export function resolveBrainMainModel(metadata: unknown): BrainProfileModel {
 	const picked = readBrainModels(metadata).main
 	return picked &&
-		(BRAIN_MAIN_MODEL_CHOICES as readonly string[]).includes(picked)
+		((BRAIN_MAIN_MODEL_CHOICES as readonly string[]).includes(picked) ||
+			isOpenRouterModelId(picked))
 		? picked
 		: BRAIN_MODEL
 }
@@ -108,10 +111,11 @@ function resolveBrainEffort(
 		: fallback
 }
 
-export function resolveBrainTriageModel(metadata: unknown): SupportedModel {
+export function resolveBrainTriageModel(metadata: unknown): BrainProfileModel {
 	const picked = readBrainModels(metadata).triage
 	return picked &&
-		(BRAIN_TRIAGE_MODEL_CHOICES as readonly string[]).includes(picked)
+		((BRAIN_TRIAGE_MODEL_CHOICES as readonly string[]).includes(picked) ||
+			isOpenRouterModelId(picked))
 		? picked
 		: TRIAGE_MODEL
 }
@@ -137,6 +141,7 @@ export function createModelProfile<ModelName extends BrainProfileModel>(
 		effort,
 		maxSteps: MAX_STEPS,
 		providerOptions(requestedEffort): SharedV3ProviderOptions {
+			if (isOpenRouterModelId(name)) return {}
 			return {
 				...getModelReasoningProviderOptions(
 					brainFallbackModelFor(name),

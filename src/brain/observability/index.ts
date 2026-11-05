@@ -17,7 +17,11 @@ import type {
 } from "../slack/triage"
 import type { ToolErrorKind } from "../turn/errors"
 import type { TurnReplySource } from "../turn/finalization"
-import { BRAIN_MODEL, TRIAGE_MODEL } from "../turn/model-profile"
+import {
+	BRAIN_MODEL,
+	type BrainProfileModel,
+	TRIAGE_MODEL,
+} from "../turn/model-profile"
 import type { TurnState } from "../turn/state"
 import type { TurnTerminalOutcome } from "../turn/terminal"
 import { toolErrorKindsFromOutput } from "./tool-outcome"
@@ -107,7 +111,7 @@ export function createBrainTurnTelemetry(
 	orgId: string,
 	userId: string,
 	input?: BrainObservabilityInput,
-	mainModel: SupportedModel = BRAIN_MODEL,
+	mainModel: BrainProfileModel = BRAIN_MODEL,
 ) {
 	const distinctId = input?.distinctId ?? userId
 	const traceId = input?.traceId ?? generateId()
@@ -479,7 +483,7 @@ export async function captureBrainTriageGeneration(args: {
 	isError?: boolean
 	error?: TriageGenerationError
 	providerError?: TriageProviderError
-	model?: SupportedModel
+	model?: BrainProfileModel
 	traceSampleRate?: number
 }): Promise<void> {
 	const modelInfo = getModelInfo(args.model ?? TRIAGE_MODEL)

@@ -3,12 +3,14 @@ import { cn } from "@lib/utils"
 import { Check, ChevronDown, Loader2, Lock } from "lucide-react"
 import { useMemo, useState } from "react"
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@ui/components/select"
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "@ui/components/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@ui/components/popover"
 import {
 	type BrainModelConfig,
 	type BrainModelRole,
@@ -173,8 +175,82 @@ const selectContentClass = cn(
 	dmSans125ClassName(),
 	"rounded-[10px] border-white/[0.08] bg-[#1B1F24] text-[#FAFAFA] shadow-[0px_8px_24px_rgba(0,0,0,0.5)]",
 )
-const selectItemClass =
-	"cursor-pointer rounded-[8px] text-[13px] text-[#FAFAFA] hover:bg-white/10 hover:text-white data-[highlighted]:bg-white/10 data-[highlighted]:text-white focus:bg-white/10 focus:text-white"
+const commandItemClass =
+	"cursor-pointer rounded-[8px] text-[13px] text-[#FAFAFA] data-[selected=true]:bg-white/10 data-[selected=true]:text-white"
+
+function ModelPicker({
+	value,
+	options,
+	defaultModel,
+	disabled,
+	onChange,
+}: {
+	value: string
+	options: string[]
+	defaultModel?: string
+	disabled: boolean
+	onChange: (model: string) => void
+}) {
+	const [open, setOpen] = useState(false)
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>
+				<button
+					type="button"
+					disabled={disabled}
+					aria-expanded={open}
+					className={cn(
+						controlClass,
+						"flex cursor-pointer items-center justify-between gap-2 text-left disabled:cursor-not-allowed",
+					)}
+				>
+					<span className="truncate">
+						{value ? labelFor(value) : "Select a model…"}
+					</span>
+					<ChevronDown className="size-3.5 shrink-0 text-[#8B929E]" />
+				</button>
+			</PopoverTrigger>
+			<PopoverContent
+				align="start"
+				className={cn(
+					selectContentClass,
+					"w-(--radix-popover-trigger-width) min-w-72 p-0",
+				)}
+			>
+				<Command className="bg-transparent text-[#FAFAFA]">
+					<CommandInput
+						placeholder="Search models…"
+						className="text-[13px] text-[#FAFAFA] placeholder:text-[#737373]"
+					/>
+					<CommandList>
+						<CommandEmpty className="py-6 text-center text-[13px] text-[#737373]">
+							No models found.
+						</CommandEmpty>
+						<CommandGroup>
+							{options.map((id) => (
+								<CommandItem
+									key={id}
+									value={id}
+									className={commandItemClass}
+									onSelect={() => {
+										onChange(id)
+										setOpen(false)
+									}}
+								>
+									{labelFor(id)}
+									{MODEL_TAGS[id] ? (
+										<span className="text-[#737B87]"> · {MODEL_TAGS[id]}</span>
+									) : null}
+									{defaultModel === id ? " (default)" : ""}
+								</CommandItem>
+							))}
+						</CommandGroup>
+					</CommandList>
+				</Command>
+			</PopoverContent>
+		</Popover>
+	)
+}
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
 	return (
@@ -400,33 +476,13 @@ export default function CompanyBrainModels({
 
 										<div className="flex flex-col gap-2">
 											<span className={fieldLabel}>Model</span>
-											<Select
+											<ModelPicker
 												value={current}
+												options={options}
+												defaultModel={defaults?.[role]}
 												disabled={disabled}
-												onValueChange={(v) => updateDraft({ [role]: v })}
-											>
-												<SelectTrigger className={controlClass}>
-													<SelectValue placeholder="Select a model…" />
-												</SelectTrigger>
-												<SelectContent className={selectContentClass}>
-													{options.map((id) => (
-														<SelectItem
-															key={id}
-															value={id}
-															className={selectItemClass}
-														>
-															{labelFor(id)}
-															{MODEL_TAGS[id] ? (
-																<span className="text-[#737B87]">
-																	{" "}
-																	· {MODEL_TAGS[id]}
-																</span>
-															) : null}
-															{defaults?.[role] === id ? " (default)" : ""}
-														</SelectItem>
-													))}
-												</SelectContent>
-											</Select>
+												onChange={(model) => updateDraft({ [role]: model })}
+											/>
 										</div>
 
 										{effortOptions.length > 0 ? (
@@ -471,6 +527,17 @@ export default function CompanyBrainModels({
 														? AUTO_EFFORT_HELP
 														: effortHelp}
 												</p>
+												{current.includes("/") ? (
+													<p
+														className={cn(
+															dmSans125ClassName(),
+															"text-[11px] text-amber-300/80",
+														)}
+													>
+														Thinking depth isn't applied to models picked from
+														OpenRouter.
+													</p>
+												) : null}
 												{currentEffort === "xhigh" &&
 												extraHighIsBounded(current) ? (
 													<p

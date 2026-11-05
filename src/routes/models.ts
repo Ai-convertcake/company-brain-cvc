@@ -19,16 +19,27 @@ import {
 	resolveBrainTriageModel,
 	TRIAGE_MODEL,
 } from "@/lib/brain/turn/model-profile"
-import { availableProviders } from "@/lib/brain/turn/brain-model"
+import {
+	availableProviders,
+	listOpenRouterToolModels,
+} from "@/lib/brain/turn/brain-model"
 import { isRecord } from "@/lib/brain/turn/util"
-import { getModelInfo, type SupportedModel } from "@/lib/model-registry"
+import {
+	getModelInfo,
+	OPENROUTER_MODEL_ID_PATTERN,
+	type SupportedModel,
+} from "@/lib/model-registry"
 import { roleGate } from "@/lib/auth/role-gate"
 import type { AppContext } from "@/types"
 
+const openRouterModelId = z.string().regex(OPENROUTER_MODEL_ID_PATTERN)
+
 const BrainModelsSchema = z.object({
-	main: z.enum(BRAIN_MAIN_MODEL_CHOICES).nullish(),
+	main: z.union([z.enum(BRAIN_MAIN_MODEL_CHOICES), openRouterModelId]).nullish(),
 	mainEffort: z.enum(BRAIN_MAIN_EFFORT_CHOICES).nullish(),
-	triage: z.enum(BRAIN_TRIAGE_MODEL_CHOICES).nullish(),
+	triage: z
+		.union([z.enum(BRAIN_TRIAGE_MODEL_CHOICES), openRouterModelId])
+		.nullish(),
 	triageEffort: z.enum(BRAIN_EFFORT_CHOICES).nullish(),
 })
 
@@ -68,6 +79,7 @@ export const brainModelsRoutes = new Hono<AppContext>()
 		const row = await db(c.env).query.organization.findFirst({
 			where: eq(schema.organization.id, org.id),
 		})
+		const openRouterModels = await listOpenRouterToolModels(c.env)
 		return c.json({
 			resolved: resolvedFor(row?.metadata),
 			defaults: {
@@ -77,9 +89,13 @@ export const brainModelsRoutes = new Hono<AppContext>()
 				triageEffort: BRAIN_TRIAGE_EFFORT,
 			},
 			choices: {
-				main: usableModels(c.env, BRAIN_MAIN_MODEL_CHOICES),
+				main: openRouterModels.length
+					? openRouterModels
+					: usableModels(c.env, BRAIN_MAIN_MODEL_CHOICES),
 				mainEffort: BRAIN_MAIN_EFFORT_CHOICES,
-				triage: usableModels(c.env, BRAIN_TRIAGE_MODEL_CHOICES),
+				triage: openRouterModels.length
+					? openRouterModels
+					: usableModels(c.env, BRAIN_TRIAGE_MODEL_CHOICES),
 				triageEffort: BRAIN_EFFORT_CHOICES,
 			},
 		})

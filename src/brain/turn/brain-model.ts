@@ -7,10 +7,11 @@ import { createAiGateway } from "ai-gateway-provider"
 import { captureException } from "@/lib/capture"
 import {
 	getModelInfo,
+	isOpenRouterModelId,
 	type SupportedModel,
 	type SupportedModelProvider,
 } from "@/lib/model-registry"
-import { brainFallbackModelFor } from "./model-profile"
+import { type BrainProfileModel, brainFallbackModelFor } from "./model-profile"
 
 // Sentinel the gateway swaps for its stored provider key (BYOK).
 const GATEWAY_INJECTED_KEY = "CF_TEMP_TOKEN"
@@ -71,18 +72,61 @@ export function openRouterModelId(modelName: SupportedModel): string {
 	return `${OPENROUTER_VENDOR[provider]}/${canonicalName ?? modelName}`
 }
 
-function openRouterModel(modelName: SupportedModel, apiKey: string, env: Env) {
+function openRouterModel(modelName: BrainProfileModel, apiKey: string, env: Env) {
 	return createOpenAI({
 		name: "openrouter",
 		apiKey,
 		baseURL: openRouterBaseUrl(env),
 		headers: { "X-Title": "Company Brain" },
-	}).chat(openRouterModelId(modelName))
+	}).chat(
+		isOpenRouterModelId(modelName) ? modelName : openRouterModelId(modelName),
+	)
 }
 
-function resolveModel(modelName: SupportedModel, env: Env): SupportedModel {
+/**
+ * Tool-capable models this deployment's OpenRouter key can pick, or [] when
+ * there is no key or OpenRouter can't be reached. The bot's turns need tools.
+ */
+export async function listOpenRouterToolModels(env: Env): Promise<string[]> {
+	const apiKey = openRouterKey(env)
+	if (!apiKey) return []
+	// /models/user honors the account's guardrails; /models is the unfiltered list
+	// for keys that aren't allowed to call it.
+	for (const path of ["/models/user", "/models"]) {
+		try {
+			const res = await fetch(`${openRouterBaseUrl(env)}${path}`, {
+				headers: { Authorization: `Bearer ${apiKey}` },
+				signal: AbortSignal.timeout(5_000),
+			})
+			if (!res.ok) continue
+			const body = (await res.json()) as {
+				data?: { id?: unknown; supported_parameters?: unknown }[]
+			}
+			const ids = (body.data ?? []).flatMap((model) =>
+				isOpenRouterModelId(model.id) &&
+				!model.id.endsWith(":batch") &&
+				Array.isArray(model.supported_parameters) &&
+				model.supported_parameters.includes("tools")
+					? [model.id]
+					: [],
+			)
+			if (ids.length) return ids
+		} catch (error) {
+			console.warn(`[company-brain] openrouter ${path} failed:`, error)
+		}
+	}
+	return []
+}
+
+function resolveModel(
+	modelName: BrainProfileModel,
+	env: Env,
+): BrainProfileModel {
 	const { provider } = getModelInfo(modelName)
-	if (canReach(provider, env)) return modelName
+	const reachable = isOpenRouterModelId(modelName)
+		? Boolean(openRouterKey(env))
+		: canReach(provider, env)
+	if (reachable) return modelName
 	const fallbackProvider = availableProviders(env)[0]
 	if (!fallbackProvider) {
 		const error = new Error(
@@ -106,10 +150,13 @@ export function hasXai(env: Env): boolean {
 }
 
 export function brainProviderModel(
-	modelName: SupportedModel,
+	modelName: BrainProfileModel,
 	env: Env,
 	apiKeyOverride?: string,
 ): LanguageModel {
+	if (isOpenRouterModelId(modelName)) {
+		return openRouterModel(modelName, openRouterKey(env) ?? "", env)
+	}
 	const { modelId, provider } = getModelInfo(modelName)
 	const directKey = providerKey(provider, env)?.trim()
 	const routerKey = openRouterKey(env)
@@ -161,7 +208,7 @@ export function wrapBrainGateway(
 	return aigateway(models as never) as LanguageModel
 }
 
-export function getBrainModel(modelName: SupportedModel, env: Env) {
+export function getBrainModel(modelName: BrainProfileModel, env: Env) {
 	const resolved = resolveModel(modelName, env)
 	const gateway = hasBrainGateway(env)
 	const key = gateway ? GATEWAY_INJECTED_KEY : undefined

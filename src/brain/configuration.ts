@@ -37,6 +37,7 @@ import {
 import type { TurnActor } from "./turn/actor"
 import type { CompanyBrainAgent } from "./turn/agent"
 import type { TurnDeps } from "./turn/deps"
+import { OPENROUTER_MODEL_ID_PATTERN } from "@/lib/model-registry"
 import { getHomeChannel, type HomeChannel } from "./turn/home-channel"
 import {
 	BRAIN_EFFORT_CHOICES,
@@ -289,9 +290,19 @@ export function createConfigurationTool(args: {
 		}),
 		deps.z.object({
 			field: deps.z.literal("models"),
-			main: deps.z.enum(BRAIN_MAIN_MODEL_CHOICES).nullish(),
+			main: deps.z
+				.union([
+					deps.z.enum(BRAIN_MAIN_MODEL_CHOICES),
+					deps.z.string().regex(OPENROUTER_MODEL_ID_PATTERN),
+				])
+				.nullish(),
 			mainEffort: deps.z.enum(BRAIN_MAIN_EFFORT_CHOICES).nullish(),
-			triage: deps.z.enum(BRAIN_TRIAGE_MODEL_CHOICES).nullish(),
+			triage: deps.z
+				.union([
+					deps.z.enum(BRAIN_TRIAGE_MODEL_CHOICES),
+					deps.z.string().regex(OPENROUTER_MODEL_ID_PATTERN),
+				])
+				.nullish(),
 			triageEffort: deps.z.enum(BRAIN_EFFORT_CHOICES).nullish(),
 		}),
 		deps.z.object({
@@ -323,9 +334,19 @@ export function createConfigurationTool(args: {
 				.string()
 				.nullish()
 				.describe("Slack channel id; required for channel_proactivity only."),
-			main: deps.z.enum(BRAIN_MAIN_MODEL_CHOICES).nullish(),
+			main: deps.z
+				.union([
+					deps.z.enum(BRAIN_MAIN_MODEL_CHOICES),
+					deps.z.string().regex(OPENROUTER_MODEL_ID_PATTERN),
+				])
+				.nullish(),
 			mainEffort: deps.z.enum(BRAIN_MAIN_EFFORT_CHOICES).nullish(),
-			triage: deps.z.enum(BRAIN_TRIAGE_MODEL_CHOICES).nullish(),
+			triage: deps.z
+				.union([
+					deps.z.enum(BRAIN_TRIAGE_MODEL_CHOICES),
+					deps.z.string().regex(OPENROUTER_MODEL_ID_PATTERN),
+				])
+				.nullish(),
 			triageEffort: deps.z.enum(BRAIN_EFFORT_CHOICES).nullish(),
 		}),
 		execute: (raw) => {

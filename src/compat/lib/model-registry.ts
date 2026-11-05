@@ -26,6 +26,23 @@ export type ModelReasoningEffort = "low" | "medium" | "high" | "xhigh"
 
 const SUPPORTED_MODEL_SET = new Set<string>(SUPPORTED_MODELS)
 
+/** A model picked from OpenRouter's live list, in its `vendor/model` form. */
+export type OpenRouterModelId = `${string}/${string}`
+
+export const OPENROUTER_MODEL_ID_PATTERN = /^[a-z0-9._-]+\/[a-z0-9._:-]+$/i
+
+export function isOpenRouterModelId(
+	value: unknown,
+): value is OpenRouterModelId {
+	return typeof value === "string" && OPENROUTER_MODEL_ID_PATTERN.test(value)
+}
+
+const OPENROUTER_VENDOR_PROVIDER: Record<string, SupportedModelProvider> = {
+	anthropic: "anthropic",
+	google: "google",
+	"x-ai": "xai",
+}
+
 export function isSupportedModel(value: unknown): value is SupportedModel {
 	return typeof value === "string" && SUPPORTED_MODEL_SET.has(value)
 }
@@ -70,7 +87,17 @@ const MODEL_INFO = {
 	},
 } as const satisfies Record<SupportedModel, SupportedModelInfo>
 
-export function getModelInfo(modelName: SupportedModel): SupportedModelInfo {
+export function getModelInfo(
+	modelName: SupportedModel | OpenRouterModelId,
+): SupportedModelInfo {
+	if (isOpenRouterModelId(modelName)) {
+		// Other vendors count as "openai": OpenRouter speaks its chat format.
+		const vendor = modelName.split("/")[0] ?? ""
+		return {
+			modelId: modelName,
+			provider: OPENROUTER_VENDOR_PROVIDER[vendor] ?? "openai",
+		}
+	}
 	return MODEL_INFO[modelName]
 }
 
@@ -106,9 +133,10 @@ function boundedEffort(
  * collapsed into a provider-prefix switch.
  */
 export function getModelReasoningProviderOptions(
-	modelName: SupportedModel,
+	modelName: SupportedModel | OpenRouterModelId,
 	effort: ModelReasoningEffort,
 ): SharedV3ProviderOptions {
+	if (isOpenRouterModelId(modelName)) return {}
 	switch (modelName) {
 		case "grok-4.3":
 		case "grok-4.5":
@@ -165,8 +193,9 @@ export function getModelReasoningProviderOptions(
 
 /** Lowest-latency valid request shape for each model. */
 export function getModelInstantProviderOptions(
-	modelName: SupportedModel,
+	modelName: SupportedModel | OpenRouterModelId,
 ): SharedV3ProviderOptions {
+	if (isOpenRouterModelId(modelName)) return {}
 	switch (modelName) {
 		case "grok-4.3":
 			return {
