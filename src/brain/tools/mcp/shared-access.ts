@@ -49,6 +49,16 @@ export function scheduledRunMayUseShared(args: {
 	)
 }
 
+/** Servers we run and know are read-only, so an AI guess can't block their calls. */
+export function isTrustedReadOnlyMcp(
+	env: Pick<Env, "READ_ONLY_MCP_SERVERS">,
+	serverSlug: string,
+): boolean {
+	return (env.READ_ONLY_MCP_SERVERS ?? "")
+		.split(",")
+		.some((slug) => slug.trim() !== "" && slug.trim() === serverSlug)
+}
+
 // Org-shared credentials reach everyone who can talk to the bot, so they stay
 // hidden unless the turn opted in. Automations and rollout checks never do.
 export function connectionsActorMayUse<T extends { userId: string | null }>(

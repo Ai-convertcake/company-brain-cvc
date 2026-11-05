@@ -16,6 +16,7 @@ import {
 	type TurnState,
 } from "../../turn/state"
 import type { McpApprovalClassifier } from "./approval-classifier"
+import { isTrustedReadOnlyMcp } from "./shared-access"
 import {
 	type CatalogMethod,
 	catalogMethods,
@@ -265,6 +266,7 @@ export class CompanyBrainMcpConnector extends McpConnector<Env> {
 	readonly #methods: CatalogMethod[]
 	readonly #sourceTools: Map<string, McpTool>
 	readonly #policyCache = new Map<string, Promise<EvaluatedPolicy>>()
+	readonly #env: Env
 
 	constructor(
 		ctx: DurableObjectState | ExecutionContext,
@@ -274,6 +276,7 @@ export class CompanyBrainMcpConnector extends McpConnector<Env> {
 		readonly ledger: NativeCallLedger,
 	) {
 		super(ctx, env)
+		this.#env = env
 		this.#methods = catalogMethods(target.catalog, target.ref.connectorName)
 		const names = stableMcpMethodNames(target.catalog.tools)
 		this.#sourceTools = new Map(
@@ -380,7 +383,12 @@ export class CompanyBrainMcpConnector extends McpConnector<Env> {
 						annotations: args.method.annotations,
 						trustedAnnotations: this.target.trustedAnnotations,
 						classifier: this.classifier,
-						effectOverride: args.effectOverride?.(input),
+						effectOverride: isTrustedReadOnlyMcp(
+							this.#env,
+							this.target.ref.serverSlug,
+						)
+							? "read"
+							: args.effectOverride?.(input),
 					})
 					return {
 						logicalInput,

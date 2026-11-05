@@ -6,6 +6,7 @@ import {
 	observeStartTs,
 	scheduledRunMayUseShared,
 	isApprovedSharedMcpChannel,
+	isTrustedReadOnlyMcp,
 } from "./shared-access"
 
 describe("shared MCP access", () => {
@@ -52,6 +53,16 @@ describe("scheduled runs and shared tools", () => {
 		]) {
 			expect(scheduledRunMayUseShared({ ...allowed, ...change })).toBe(false)
 		}
+	})
+})
+
+describe("trusted read-only servers", () => {
+	it("trusts only listed servers, and none by default", () => {
+		const env = { READ_ONLY_MCP_SERVERS: "companybrainmcp" }
+		expect(isTrustedReadOnlyMcp(env, "companybrainmcp")).toBe(true)
+		expect(isTrustedReadOnlyMcp(env, "firecrawl")).toBe(false)
+		expect(isTrustedReadOnlyMcp(env, "")).toBe(false)
+		expect(isTrustedReadOnlyMcp({}, "companybrainmcp")).toBe(false)
 	})
 })
 

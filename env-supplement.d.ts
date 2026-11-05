@@ -60,6 +60,8 @@ interface Env {
 	SHARED_MCP_CHANNELS?: string
 	/** Comma-separated private Slack channel IDs the bot may learn from unprompted. */
 	LEARNING_CHANNELS?: string
+	/** Comma-separated MCP slugs known to be read-only, which skip the AI effect check. */
+	READ_ONLY_MCP_SERVERS?: string
 	/** The built app UI (web/), served for every path the worker doesn't own. */
 	ASSETS: Fetcher
 }
