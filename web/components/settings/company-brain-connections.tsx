@@ -385,6 +385,7 @@ export default function CompanyBrainConnections() {
 		{ name: string; value: string }[]
 	>([])
 	const [customAdvancedOpen, setCustomAdvancedOpen] = useState(false)
+	const [customShared, setCustomShared] = useState(false)
 	const [customAuthMethod, setCustomAuthMethod] = useState<"oauth" | "api-key">(
 		"oauth",
 	)
@@ -515,6 +516,7 @@ export default function CompanyBrainConnections() {
 		setCustomHeaderName("")
 		setCustomExtraHeaders([])
 		setCustomAdvancedOpen(false)
+		setCustomShared(false)
 		setCustomAuthMethod("oauth")
 	}
 
@@ -596,7 +598,7 @@ export default function CompanyBrainConnections() {
 						token,
 						headerName: customHeaderName.trim() || undefined,
 						extraHeaders: Object.fromEntries(rows),
-						shared: false,
+						shared: customShared,
 					}),
 				})
 				const data = (await res.json().catch(() => ({}))) as {
@@ -618,7 +620,7 @@ export default function CompanyBrainConnections() {
 				headers: { "content-type": "application/json" },
 				body: JSON.stringify({
 					serverUrl,
-					shared: false,
+					shared: customShared,
 					redirectUrl: window.location.href,
 				}),
 			})
@@ -689,7 +691,6 @@ export default function CompanyBrainConnections() {
 	const customRows = canClassifyCustomRows
 		? rows.filter(
 				(row) =>
-					row.userId !== null &&
 					row.status === "active" &&
 					typeof row.serverUrl === "string" &&
 					row.serverUrl.length > 0 &&
@@ -975,8 +976,8 @@ export default function CompanyBrainConnections() {
 								})}
 								{customRows.map((row) => (
 									<InstalledTile
-										key={`custom-${row.serverSlug}`}
-										name={customConnectionName(row.serverSlug)}
+										key={`custom-${row.serverSlug}-${row.userId ?? "org"}`}
+										name={`${customConnectionName(row.serverSlug)}${row.userId === null ? " (shared)" : ""}`}
 										icon={brainConnectorIcon(row.serverSlug, row.serverSlug)}
 									>
 										<DropdownMenuItem
@@ -989,7 +990,7 @@ export default function CompanyBrainConnections() {
 														category: "Custom MCP",
 														authType: "oauth",
 													},
-													false,
+													row.userId === null,
 												)
 											}
 										>
@@ -1146,6 +1147,17 @@ export default function CompanyBrainConnections() {
 									</button>
 								))}
 						</div>
+
+						{isAdmin && (
+							<label className="flex items-center gap-2 text-[13px] text-[#FAFAFA]">
+								<input
+									type="checkbox"
+									checked={customShared}
+									onChange={(event) => setCustomShared(event.target.checked)}
+								/>
+								Share with the organization (read-only, approved channels only)
+							</label>
+						)}
 
 						{customAuthMethod === "api-key" && (
 							<input

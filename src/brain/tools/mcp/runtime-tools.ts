@@ -3,6 +3,7 @@ import { z } from "zod"
 import type { ActiveLease, LeaseRuntimeContext } from "../../lease/types"
 import { McpReauthRequiredError } from "./oauth-provider"
 import { connectToolProvider, type ToolProviderHandle } from "./provider"
+import { connectionsActorMayUse } from "./shared-access"
 import {
 	getConnectionById,
 	listActiveConnectionsForActor,
@@ -103,6 +104,7 @@ export async function createMcpRuntimeTools(
 		userId?: string
 		personalConnectionsOnly?: boolean
 		orgSharedOnly?: boolean
+		allowSharedConnections?: boolean
 		readOnly?: boolean
 		/** Hide model search text and provider error bodies from operational logs. */
 		redactToolLogs?: boolean
@@ -117,14 +119,17 @@ export async function createMcpRuntimeTools(
 			: error instanceof Error
 				? error.message
 				: String(error)
-	const allConnections = actor.orgSharedOnly
-		? await listActiveConnectionsForActor(env, actor.orgId, undefined, false)
-		: await listActiveConnectionsForActor(
-				env,
-				actor.orgId,
-				actor.userId,
-				actor.personalConnectionsOnly,
-			)
+	const allConnections = connectionsActorMayUse(
+		actor.orgSharedOnly
+			? await listActiveConnectionsForActor(env, actor.orgId, undefined, false)
+			: await listActiveConnectionsForActor(
+					env,
+					actor.orgId,
+					actor.userId,
+					actor.personalConnectionsOnly,
+				),
+		actor,
+	)
 	// One connection per slug, personal (userId set) wins over org-shared, so tool
 	// ids (keyed by slug.tool) resolve to deterministic credentials.
 	const bySlug = new Map<string, (typeof allConnections)[number]>()

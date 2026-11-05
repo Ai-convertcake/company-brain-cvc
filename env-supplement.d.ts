@@ -56,6 +56,8 @@ interface Env {
 interface Env {
 	/** "on" when the Workers Paid container block is enabled in wrangler.jsonc. */
 	CONTAINER_SANDBOX?: string
+	/** Comma-separated private Slack channel IDs that may use org-shared MCP tools. */
+	SHARED_MCP_CHANNELS?: string
 	/** The built app UI (web/), served for every path the worker doesn't own. */
 	ASSETS: Fetcher
 }

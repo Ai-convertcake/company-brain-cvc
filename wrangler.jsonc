@@ -31,7 +31,9 @@
 		// run on a Cloudflare container.
 		"CONTAINER_SANDBOX": "off",
 		// The sandbox SDK's RPC transport; artifact downloads stream over it.
-		"SANDBOX_TRANSPORT": "rpc"
+		"SANDBOX_TRANSPORT": "rpc",
+		// Private Slack channels that may use org-shared MCP tools, comma-separated.
+		"SHARED_MCP_CHANNELS": "C0CF6LJUHGR"
 	},
 	"observability": {
 		"enabled": true

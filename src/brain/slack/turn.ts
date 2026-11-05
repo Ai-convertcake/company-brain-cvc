@@ -25,6 +25,7 @@ import {
 	isOurSlackBotMessage,
 	originalRequestForConnectAcceptance,
 } from "../prompt/build"
+import { isApprovedSharedMcpChannel } from "../tools/mcp/shared-access"
 import { getCatalogEntry, isMcpCatalogSlug } from "../tools/mcp/catalog"
 import { startMcpConnect } from "../tools/mcp/connect"
 import {
@@ -2643,6 +2644,15 @@ async function runSlackTurnInner(
 				channel,
 			)
 		: undefined
+	// Private only: a public channel would show the data to everyone and save it
+	// to org-wide memory.
+	if (
+		conversationInfo?.isPrivate === true &&
+		isApprovedSharedMcpChannel(brainAgent(agent).env, channel)
+	) {
+		actor.personalConnectionsOnly = false
+		actor.allowSharedConnections = true
+	}
 	const memoryScope = slackMemoryScopeForTurn({
 		isDM,
 		channel,

@@ -230,9 +230,6 @@ export const brainMcpConnectionsRoutes = new Hono<AppContext>()
 			if (!orgHasBrain(org)) {
 				return c.json({ error: "forbidden" }, 403)
 			}
-			if (body.shared) {
-				return c.json({ error: "custom MCP URLs are personal-only" }, 403)
-			}
 			if (serverUrl) {
 				const validated = validateCustomMcpServerUrl(serverUrl, c.env)
 				if (!validated.ok) return c.json({ error: validated.error }, 400)
@@ -559,9 +556,6 @@ export const brainMcpConnectionsRoutes = new Hono<AppContext>()
 		if (!entry) {
 			if (!orgHasBrain(org)) {
 				return c.json({ error: "forbidden" }, 403)
-			}
-			if (body.shared) {
-				return c.json({ error: "custom MCP URLs are personal-only" }, 403)
 			}
 			const validated = validateCustomMcpServerUrl(serverUrl, c.env)
 			if (!validated.ok) return c.json({ error: validated.error }, 400)

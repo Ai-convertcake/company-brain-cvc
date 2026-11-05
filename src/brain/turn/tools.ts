@@ -36,6 +36,7 @@ import {
 	type McpRuntimeServerState,
 	type McpRuntimeTools,
 } from "../tools/mcp/runtime-tools"
+import { connectionsActorMayUse } from "../tools/mcp/shared-access"
 import { listConnectionsForActor } from "../tools/mcp/store"
 import { sandboxToolsConfigured } from "../tools/sandbox/client"
 import { createSandboxTools } from "../tools/sandbox/tools"
@@ -742,20 +743,18 @@ export async function assembleTurnTools(
 	let mcpClose: (() => Promise<void>) | undefined
 	let connectedAppRouting: "code" | "direct" | "none" = "none"
 	const connectionLister = args.connectionLister ?? listConnectionsForActor
-	const persistedConnections = await connectionLister(
-		env,
-		org.id,
-		actor.userId,
-		{
+	const persistedConnections = connectionsActorMayUse(
+		await connectionLister(env, org.id, actor.userId, {
 			personalOnly: actor.personalConnectionsOnly,
 			orgSharedOnly: actor.orgSharedOnly,
-		},
-	).catch((err) => {
-		console.warn(
-			`[company-brain][${traceId}] connected-app inventory unavailable: ${err instanceof Error ? err.message : String(err)}`,
-		)
-		return []
-	})
+		}).catch((err) => {
+			console.warn(
+				`[company-brain][${traceId}] connected-app inventory unavailable: ${err instanceof Error ? err.message : String(err)}`,
+			)
+			return []
+		}),
+		actor,
+	)
 	const callbackUrl = `${env.PUBLIC_URL}/brain/mcp-connections/callback`
 	let connectedAppRuntime: ConnectedAppRuntimeController | undefined
 	if (

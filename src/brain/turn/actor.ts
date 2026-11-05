@@ -5,10 +5,12 @@ export type TurnActor = {
 	orgId: string
 	userId?: string
 	isAdmin?: boolean
-	/** Slack turns use only the asker's personal connections, not org-shared. */
+	/** Slack turns outside approved channels use only personal connections. */
 	personalConnectionsOnly?: boolean
 	/** Automations read strictly org-shared connections, ignoring userId. */
 	orgSharedOnly?: boolean
+	/** Org-shared connections stay hidden unless this is set. */
+	allowSharedConnections?: boolean
 	/** Block ALL MCP writes (org-shared and personal). Automations are read-only. */
 	readOnly?: boolean
 	memberLookup?: SlackMemberLookup
