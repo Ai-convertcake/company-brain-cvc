@@ -7,6 +7,10 @@ import { captureException } from "@/lib/capture"
 import { decryptToken } from "@/lib/crypto"
 import { writeMemories } from "../memory"
 import { BRAIN_CAPTURE_POLICY } from "../memory/profile-config"
+import {
+	isApprovedLearningChannel,
+	observedMemoryScope,
+} from "../tools/mcp/shared-access"
 import { MAX_BRAIN_OBSERVE_DOCS, personBrainTagKey } from "../memory/tags"
 import {
 	getBrainMemoryResetEpoch,
@@ -52,7 +56,7 @@ const DistillSchema = z.object({
 	memories: z.array(MemoryDocSchema).max(MAX_BRAIN_OBSERVE_DOCS),
 })
 
-const DISTILL_SYSTEM = `You watch a batch of new Slack channel messages and CURATE what's worth remembering for the team's shared brain. You do NOT write the final memories — you select and group the durable material; a downstream extractor turns each group into durable memories, dedupes, and supersedes stale facts.
+const DISTILL_SYSTEM = `You watch a batch of new Slack channel messages and CURATE what's worth remembering for this channel's memory. You do NOT write the final memories — you select and group the durable material; a downstream extractor turns each group into durable memories, dedupes, and supersedes stale facts.
 
 ${BRAIN_CAPTURE_POLICY}
 
@@ -929,6 +933,7 @@ async function processPendingBatch(
 	ws: NonNullable<Awaited<ReturnType<typeof getWorkspaceByTeamId>>>,
 	installedByUserId: string,
 	botToken: string,
+	isPrivateChannel: boolean,
 ): Promise<"complete" | "continue" | "retry" | "stale"> {
 	if (!isOwned(agent, key, scheduleId)) return "stale"
 	const cursor = getObserveCursor(agent, payload)
@@ -1028,7 +1033,7 @@ async function processPendingBatch(
 			org,
 			installedByUserId,
 			persisted.clusters,
-			undefined,
+			observedMemoryScope(payload.channel, isPrivateChannel),
 			agent,
 			{
 				expectedResetEpoch: payload.resetEpoch ?? 0,
@@ -1099,7 +1104,8 @@ export async function runChannelObserve(
 		const info = await getSlackConversationInfo(botToken, payload.channel)
 		if (!isOwned(agent, key, schedule.id)) return
 		if (!info) throw new Error("channel_info_unavailable")
-		if (info.isPrivate !== false) {
+		const isPrivateChannel = info.isPrivate !== false
+		if (isPrivateChannel && !isApprovedLearningChannel(env, payload.channel)) {
 			clearTerminalChannelObserve(agent, key, schedule.id)
 			return
 		}
@@ -1152,6 +1158,7 @@ export async function runChannelObserve(
 			ws,
 			installedByUserId,
 			botToken,
+			isPrivateChannel,
 		)
 		if (processResult === "stale") return
 		if (processResult === "complete") {

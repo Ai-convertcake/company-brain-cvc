@@ -18,6 +18,7 @@ import {
 	buildBrainPrivateChannelEntityContext,
 	buildBrainSelfEntityContext,
 	buildBrainSharedEntityContext,
+	ENTITY_CONTEXT_MAX_CHARS,
 } from "./profile-config"
 import {
 	isGeneratedBrainSpaceName,
@@ -97,7 +98,7 @@ async function upsertBrainSpaceConfig(
 		)
 	await updateContainerTagSettings(env, params.containerTag, {
 		...(keepName ? {} : { name: params.name }),
-		entityContext: params.entityContext,
+		entityContext: params.entityContext.slice(0, ENTITY_CONTEXT_MAX_CHARS),
 		profileBuckets: params.profileBuckets,
 	})
 }

@@ -58,6 +58,8 @@ interface Env {
 	CONTAINER_SANDBOX?: string
 	/** Comma-separated private Slack channel IDs that may use org-shared MCP tools. */
 	SHARED_MCP_CHANNELS?: string
+	/** Comma-separated private Slack channel IDs the bot may learn from unprompted. */
+	LEARNING_CHANNELS?: string
 	/** The built app UI (web/), served for every path the worker doesn't own. */
 	ASSETS: Fetcher
 }

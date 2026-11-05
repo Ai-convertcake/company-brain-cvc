@@ -66,6 +66,16 @@ export const BRAIN_SELF_BUCKETS: ProfileBucketDef[] = [
 	},
 ]
 
+/** Supermemory rejects a longer entity context, and then applies no rules at all. */
+export const ENTITY_CONTEXT_MAX_CHARS = 1500
+
+// Shorter form of the capture policy that fits the entity context limit.
+const ENTITY_CONTEXT_CAPTURE_POLICY = [
+	"Keep durable facts: decisions and why, who owns what, commitments, blockers, constraints. Date dated facts as YYYY-MM-DD.",
+	"Give transient or low-confidence facts a forget horizon. Update an existing memory instead of duplicating it.",
+	"Skip casual chat, secrets and speculation, and anything a connected tool owns: metrics, task status, document contents.",
+].join("\n")
+
 export function buildBrainSelfEntityContext(): string {
 	return [
 		"This tag is the agent's own profile: how the company brain should talk AND operate in THIS workspace. It is about the AGENT, not the company or any person.",
@@ -90,7 +100,7 @@ export function buildBrainSharedEntityContext(params: {
 		"When a fact is clearly and primarily about one teammate, save it with that teammate's stable person_<slack_user_id> memory tag.",
 		"A full profile isn't provided yet: infer the org's products, structure, and vocabulary from ingested content, and treat recurring names (people, repos, products, customers, projects) as this org's entities.",
 		"Hold exactly ONE current answer per subject. When a new fact changes who owns or is responsible for something, or updates a subject's status/role/decision already in memory (a new owner, a handoff, 'now', 'no longer', 'moved to'), UPDATE that subject's existing memory (emit an updates relation) instead of storing a parallel fact — the related memories are provided for exactly this.",
-		BRAIN_CAPTURE_POLICY,
+		ENTITY_CONTEXT_CAPTURE_POLICY,
 	]
 		.filter(Boolean)
 		.join("\n")
@@ -125,7 +135,7 @@ export function buildBrainPrivateChannelEntityContext(params: {
 		purposeLine,
 		"Capture company-relevant knowledge scoped to this channel's members and topics. When a fact is clearly about one teammate, save it with that teammate's stable person_<slack_user_id> memory tag.",
 		"Do NOT leak this into the shared brain.",
-		BRAIN_CAPTURE_POLICY,
+		ENTITY_CONTEXT_CAPTURE_POLICY,
 	]
 		.filter(Boolean)
 		.join("\n")
