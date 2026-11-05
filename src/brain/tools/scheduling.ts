@@ -365,6 +365,10 @@ async function runScheduledTaskInner(
 		return
 	}
 	const directDelivery = isDirectSlackChannel(target)
+	const targetInfo =
+		dm || directDelivery
+			? undefined
+			: await getSlackConversationInfo(botToken, target)
 	const allowSharedConnections =
 		!dm &&
 		!directDelivery &&
@@ -373,7 +377,7 @@ async function runScheduledTaskInner(
 			kind: payload.kind,
 			readOnly: payload.readOnly,
 			target,
-			isPrivate: (await getSlackConversationInfo(botToken, target))?.isPrivate,
+			isPrivate: targetInfo?.isPrivate,
 		})
 	console.log(
 		`[company-brain] scheduled task ${schedule.id} fire org=${org.id} deliverTo=${payload.deliverTo ?? "origin"} target=${target} label="${payload.label}"`,
@@ -406,7 +410,10 @@ async function runScheduledTaskInner(
 	const memoryScope: SlackMemoryScope | undefined =
 		dm && payload.creatorSlackUserId
 			? { kind: "dm", channelId: target, userId: payload.creatorSlackUserId }
-			: payload.memoryScope
+			: (payload.memoryScope ??
+				(targetInfo?.isPrivate
+					? { kind: "private_channel", channelId: target }
+					: undefined))
 
 	// Alarms outlive the trial: block spend once entitlement lapses.
 	if (

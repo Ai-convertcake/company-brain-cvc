@@ -6,6 +6,20 @@ export function cronToCadence(cron: string): "daily" | "weekly" {
 	return dow && dow !== "*" ? "weekly" : "daily"
 }
 
+// Recurring channel digests live on the Automations page, so admins can see and
+// run them. Reminders and DM digests stay personal to whoever set them.
+export function savesAsAutomation(args: {
+	when: ScheduleWhen
+	kind: ScheduledTaskPayload["kind"]
+	deliverTo: ScheduledTaskPayload["deliverTo"]
+}): boolean {
+	return (
+		args.when.kind === "cron" &&
+		args.kind === "digest" &&
+		args.deliverTo !== "dm"
+	)
+}
+
 // Derived from timing and destination: inheriting these on replace leaks personal creds into channels.
 export function derivedScheduleFields(args: {
 	when: ScheduleWhen

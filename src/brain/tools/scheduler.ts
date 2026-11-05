@@ -25,6 +25,14 @@ import {
 	scheduleNextRunIso,
 	scheduleRelationship,
 } from "./scheduling"
+import { savesAsAutomation } from "./schedule-derive"
+import {
+	AutomationError,
+	createAutomation,
+	deleteAutomation,
+	getAutomation,
+	listAutomations,
+} from "./automations"
 
 const MIN_CRON_INTERVAL_SECONDS = 300
 const MIN_DELAY_SECONDS = 30
@@ -382,6 +390,59 @@ export function createSchedulerTools(
 			// Timing says how often, not what it is.
 			const taskKind = when.kind === "cron" ? (kind ?? "reminder") : "reminder"
 
+			if (
+				when.kind === "cron" &&
+				ctx.creatorUserId &&
+				savesAsAutomation({
+					when,
+					kind: taskKind,
+					deliverTo: target.deliverTo,
+				})
+			) {
+				try {
+					const automation = await createAutomation(
+						agent,
+						{
+							title: label,
+							channelId: target.channel,
+							deliverTo: "channel",
+							prompt: instruction,
+							cron: when.cron,
+							enabled: true,
+						},
+						ctx.creatorUserId,
+						"",
+						false,
+					)
+					console.log(
+						`[company-brain][${traceId}] schedule_task automation=${automation.id} cron=${when.cron}`,
+					)
+					return {
+						id: automation.id,
+						type: "automation",
+						nextRun: parseCronExpression(when.cron)
+							.getNextDate(new Date())
+							.toISOString(),
+						deliverTo: target.deliverTo,
+						...(target.channelName ? { channel: `#${target.channelName}` } : {}),
+						label,
+						scheduledWhen: when,
+						managedIn: "Configure -> Automations",
+					}
+				} catch (err) {
+					console.warn(
+						`[company-brain][${traceId}] schedule_task automation failed:`,
+						err,
+					)
+					return {
+						error:
+							err instanceof AutomationError
+								? err.message
+								: "Could not create the schedule. Check the timing and try again.",
+					}
+				}
+			}
+
 			let created: Awaited<ReturnType<typeof scheduleBrainTask>>
 			try {
 				created = await scheduleBrainTask(agent, when, {
@@ -433,10 +494,16 @@ export function createSchedulerTools(
 		inputSchema: deps.z.object({}),
 		execute: async () => {
 			const tasks = listBrainTasks(agent, ctx.creatorSlackUserId)
+			const automations = ctx.creatorUserId
+				? listAutomations(agent, {
+						userId: ctx.creatorUserId,
+						isAdmin: false,
+					})
+				: []
 			console.log(
-				`[company-brain][${traceId}] list_scheduled_tasks count=${tasks.length}`,
+				`[company-brain][${traceId}] list_scheduled_tasks count=${tasks.length} automations=${automations.length}`,
 			)
-			return tasks.map((task) => {
+			const reminders = tasks.map((task) => {
 				const relationship = scheduleRelationship(
 					task.payload,
 					ctx.creatorSlackUserId,
@@ -470,6 +537,21 @@ export function createSchedulerTools(
 					hasStoredTiming: Boolean(task.payload.scheduledWhen),
 				}
 			})
+			return [
+				...reminders,
+				...automations.map((automation) => ({
+					id: automation.id,
+					type: "automation",
+					label: automation.title,
+					instruction: automation.prompt,
+					enabled: automation.enabled,
+					cron: automation.cron,
+					relationship: "creator",
+					canCancel: true,
+					canReplace: false,
+					managedIn: "Configure -> Automations",
+				})),
+			]
 		},
 	})
 
@@ -480,6 +562,14 @@ export function createSchedulerTools(
 			id: deps.z.string().describe("Schedule id to cancel."),
 		}),
 		execute: async ({ id }) => {
+			const automation = getAutomation(agent, id)
+			if (automation && ctx.creatorUserId && automation.createdBy === ctx.creatorUserId) {
+				await deleteAutomation(agent, id, ctx.creatorUserId, false)
+				console.log(
+					`[company-brain][${traceId}] cancel_scheduled_task automation=${id}`,
+				)
+				return { id, cancelled: true }
+			}
 			const cancelled = await cancelBrainTask(agent, id, ctx.creatorSlackUserId)
 			console.log(
 				`[company-brain][${traceId}] cancel_scheduled_task id=${id} cancelled=${cancelled}`,
