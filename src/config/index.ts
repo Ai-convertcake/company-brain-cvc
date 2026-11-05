@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer"
 import { getBrainModel } from "../brain/turn/brain-model"
-import { TRIAGE_MODEL } from "../brain/turn/model-profile"
+import { LEARNING_MODEL, TRIAGE_MODEL } from "../brain/turn/model-profile"
 import { sandboxToolsConfigured } from "../brain/tools/sandbox/availability"
 import { VectorDBService } from "../compat/services/vectordb"
 import { memoryClient } from "../memory/client"
@@ -47,6 +47,14 @@ export function fastModel() {
 		throw new Error("configureFromEnv has not run yet")
 	}
 	return getBrainModel(TRIAGE_MODEL, currentEnv)
+}
+
+/** Picks what to remember from channel messages. */
+export function learningModel() {
+	if (!currentEnv) {
+		throw new Error("configureFromEnv has not run yet")
+	}
+	return getBrainModel(LEARNING_MODEL, currentEnv)
 }
 
 /**

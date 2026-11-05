@@ -28,6 +28,7 @@ export const BRAIN_MODEL = "grok-4.5" as const
 export const BRAIN_FALLBACK_MODEL = "claude-sonnet-5" as const
 export const BRAIN_FALLBACK_MODEL_FOR_ANTHROPIC = "gpt-5.6" as const
 export const TRIAGE_MODEL = "claude-haiku-4.5" as const
+export const LEARNING_MODEL = "anthropic/claude-haiku-5.5" as const
 export const RESEARCH_MODEL = "grok-4.5" as const
 export const BRAIN_MAIN_EFFORT = "high" as const satisfies Effort
 export const BRAIN_TRIAGE_EFFORT = "low" as const satisfies Effort

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto"
 import type { Schedule } from "agents"
 import { generateObject } from "ai"
 import { z } from "zod"
-import { fastModel } from "@/config"
+import { learningModel } from "@/config"
 import { captureException } from "@/lib/capture"
 import { decryptToken } from "@/lib/crypto"
 import { writeMemories } from "../memory"
@@ -984,7 +984,7 @@ async function processPendingBatch(
 					.join("\n")}\n\n`
 			: ""
 		const result = await generateObject({
-			model: fastModel(),
+			model: learningModel(),
 			system: DISTILL_SYSTEM,
 			prompt: `${rosterText}New messages in this channel:\n${promptBatch.prompt}\n\nDurable memories (or an empty list):`,
 			schema: DistillSchema,
