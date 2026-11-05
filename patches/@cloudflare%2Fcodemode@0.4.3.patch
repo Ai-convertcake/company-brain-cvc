@@ -1,0 +1,383 @@
+diff --git a/dist/base-B2amchZA.d.ts b/dist/base-B2amchZA.d.ts
+index 3abd02e33a123c94f69a9185b7e7afed02f9d36d..431e20bf5a665de676495733399e98deb823f978 100644
+--- a/dist/base-B2amchZA.d.ts
++++ b/dist/base-B2amchZA.d.ts
+@@ -4,7 +4,7 @@ import { JSONSchema7 } from "json-schema";
+ 
+ //#region src/connectors/types.d.ts
+ type ToolAnnotations = {
+-  /** Requires user approval before executing. Unannotated methods execute immediately. */ requiresApproval?: boolean;
++  /** Requires user approval before executing. Dynamic policies are evaluated against the exact arguments. */ requiresApproval?: boolean | "dynamic";
+   /**
+    * Replay policy for the durable log. `"reexecute"` marks the call ephemeral:
+    * its result is never stored, and a replay re-executes the call instead of
+@@ -82,7 +82,12 @@ type ConnectorTool = {
+   description?: string /** JSON Schema for the tool input. Defaults to an open object. */;
+   inputSchema?: JSONSchema7;
+   outputSchema?: JSONSchema7 /** Pause for user approval before executing. Omit to execute immediately. */;
+-  requiresApproval?: boolean;
++  requiresApproval?:
++    | boolean
++    | ((
++        args: unknown,
++        ctx?: ToolExecuteContext
++      ) => boolean | Promise<boolean>);
+   /**
+    * Replay policy for the durable log. `"reexecute"` marks the call ephemeral:
+    * its result is never stored durably, and a replay re-executes the call
+@@ -166,6 +171,11 @@ declare abstract class CodemodeConnector<
+     args: unknown,
+     ctx?: ToolExecuteContext
+   ): Promise<unknown>;
++  requiresApproval(
++    method: string,
++    args: unknown,
++    ctx?: ToolExecuteContext
++  ): Promise<boolean>;
+   /**
+    * Revert an applied action. Returns whether a revert actually ran — reads and
+    * tools without a `revert` are a no-op and return `false`, so the runtime can
+diff --git a/dist/base-BqhlNCSH.js b/dist/base-BqhlNCSH.js
+index c13dd221964f94bc5fcdd5490cac40b78b735bfc..42eba7164792664ba69bf53ff02370cc0ebd03ff 100644
+--- a/dist/base-BqhlNCSH.js
++++ b/dist/base-BqhlNCSH.js
+@@ -71,14 +71,14 @@ var CodemodeConnector = class extends WorkerEntrypoint {
+ 		const descriptors = {};
+ 		const annotations = {};
+ 		for (const [name, t] of Object.entries(tools)) {
+-			if (t.requiresApproval && t.replay === "reexecute") throw new Error(`Connector "${this.name()}" tool "${name}" cannot combine requiresApproval with replay: "reexecute" — approved actions must be logged, not re-executed.`);
++			if ((t.requiresApproval === true || typeof t.requiresApproval === "function") && t.replay === "reexecute") throw new Error(`Connector "${this.name()}" tool "${name}" cannot combine requiresApproval with replay: "reexecute" — approved actions must be logged, not re-executed.`);
+ 			descriptors[name] = {
+ 				description: t.description,
+ 				inputSchema: toolInputSchema(t),
+ 				outputSchema: t.outputSchema
+ 			};
+-			if (t.requiresApproval || t.replay === "reexecute") annotations[name] = {
+-				...t.requiresApproval ? { requiresApproval: true } : {},
++			if (t.requiresApproval === true || typeof t.requiresApproval === "function" || t.replay === "reexecute") annotations[name] = {
++				...t.requiresApproval === true ? { requiresApproval: true } : typeof t.requiresApproval === "function" ? { requiresApproval: "dynamic" } : {},
+ 				...t.replay === "reexecute" ? { replay: "reexecute" } : {}
+ 			};
+ 		}
+@@ -94,6 +94,14 @@ var CodemodeConnector = class extends WorkerEntrypoint {
+ 		if (!tool) throw new Error(`Tool "${method}" not found on ${this.name()}`);
+ 		return await tool.execute(args, ctx);
+ 	}
++	async requiresApproval(method, args, ctx) {
++		const tool = (await this.resolvedTools())[method];
++		if (!tool) throw new Error(`Tool "${method}" not found on ${this.name()}`);
++		const requirement = tool.requiresApproval;
++		const decision = typeof requirement === "function" ? await requirement(args, ctx) : requirement ?? false;
++		if (typeof decision !== "boolean") throw new Error(`Approval policy for "${method}" on ${this.name()} did not return a boolean.`);
++		return decision;
++	}
+ 	/**
+ 	* Revert an applied action. Returns whether a revert actually ran — reads and
+ 	* tools without a `revert` are a no-op and return `false`, so the runtime can
+diff --git a/dist/index.d.ts b/dist/index.d.ts
+index 8a7f72aa147de3e991b06a68fdcda001082eeb21..c8b26173302717a14af932f75cdd43dc594c9de6 100644
+--- a/dist/index.d.ts
++++ b/dist/index.d.ts
+@@ -208,6 +208,10 @@ type ToolDecision =
+   | {
+       kind: "pause";
+       seq: number;
++    }
++  | {
++      kind: "authorize";
++      seq: number;
+     };
+ type BeginOptions = {
+   /** Terminal executions retained per runtime. Defaults to 50. */ maxExecutions?: number /** Connector names configured on the runtime starting this execution. */;
+@@ -267,7 +271,7 @@ declare class CodemodeRuntime extends DurableObject<unknown> {
+     connector: string,
+     method: string,
+     args: unknown,
+-    requiresApproval: boolean,
++    requiresApproval: boolean | undefined,
+     ephemeral?: boolean
+   ): Promise<ToolDecision>;
+   /**
+diff --git a/dist/index.js b/dist/index.js
+index c7b42eaf4f1b76977c314ad5b723a786b97ca10b..b01388da5dcf01b95dea103a7fbd246bdc5ca3ab 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -237,6 +237,7 @@ var DynamicWorkerExecutor = class {
+ 			"__decodeCodemodeValue",
+ 			"__stringifyForCodemode",
+ 			"__parseForCodemode",
++			"__detachRpcResult",
+ 			"WorkerEntrypoint",
+ 			"CodeExecutor",
+ 			"Promise",
+@@ -280,7 +281,7 @@ var DynamicWorkerExecutor = class {
+ 		}
+ 		const proxyInits = providers.filter((p) => !connectorNames.has(p.name)).map((p) => `    const ${p.name} = new Proxy({}, {\n      get: (target, toolName) => {\n        if (Object.prototype.hasOwnProperty.call(target, toolName)) return target[toolName];\n        if (typeof toolName !== "string") return undefined;\n        return async (...args) => {\n          const resJson = await __dispatchers.${p.name}.call(String(toolName), __stringifyForCodemode(args));\n          const data = __parseForCodemode(resJson);\n          if (data.error) throw new Error(data.error);\n          return data.result;\n        };\n      }\n    });`);
+ 		const preludeInits = providers.filter((p) => !connectorNames.has(p.name) && p.prelude).map((p) => p.prelude);
+-		const connectorProxyInits = connectors.map((c) => `    const ${c.name} = new Proxy({}, {\n      get: (_, toolName) => {\n        if (typeof toolName !== "string") return undefined;\n        return async (...args) => {\n          const __r = await __connectors.${c.name}.callTool(toolName, args[0]);\n          if (__r && typeof __r === "object") {\n            if (__r.${CONNECTOR_CONTROL_KEY} === "pause") throw new Error("${PAUSE_SENTINEL_LITERAL}");\n            if (__r.${CONNECTOR_CONTROL_KEY} === "error") throw new Error(String(__r.message));\n          }\n          return __r;\n        };\n      }\n    });`);
++		const connectorProxyInits = connectors.map((c) => `    const ${c.name} = new Proxy({}, {\n      get: (_, toolName) => {\n        if (typeof toolName !== "string") return undefined;\n        return async (...args) => {\n          const __r = __detachRpcResult(await __connectors.${c.name}.callTool(toolName, args[0]));\n          if (__r && typeof __r === "object") {\n            if (__r.${CONNECTOR_CONTROL_KEY} === "pause") throw new Error("${PAUSE_SENTINEL_LITERAL}");\n            if (__r.${CONNECTOR_CONTROL_KEY} === "error") throw new Error(String(__r.message));\n          }\n          return __r;\n        };\n      }\n    });`);
+ 		const executorModule = [
+ 			"import { WorkerEntrypoint } from \"cloudflare:workers\";",
+ 			"",
+@@ -291,6 +292,17 @@ var DynamicWorkerExecutor = class {
+ 			"    console.warn = (...a) => { __logs.push(\"[warn] \" + a.map(String).join(\" \")); };",
+ 			"    console.error = (...a) => { __logs.push(\"[error] \" + a.map(String).join(\" \")); };",
+ 			SANDBOX_CODEC,
++			"    function __detachRpcResult(value) {",
++			"      if (!value || typeof value !== \"object\") return value;",
++			"      try {",
++			"        return __parseForCodemode(__stringifyForCodemode(value));",
++			"      } finally {",
++			"        const dispose = value[Symbol.dispose];",
++			"        if (typeof dispose === \"function\") {",
++			"          try { dispose.call(value); } catch {}",
++			"        }",
++			"      }",
++			"    }",
+ 			...proxyInits,
+ 			...connectorProxyInits,
+ 			...preludeInits,
+@@ -678,6 +690,10 @@ var CodemodeRuntime = class extends DurableObject {
+ 				seq
+ 			};
+ 		}
++		if (requiresApproval === void 0) return {
++			kind: "authorize",
++			seq
++		};
+ 		let storedArgs;
+ 		try {
+ 			storedArgs = toStored(`Arguments to ${connector}.${method}`, args);
+@@ -1492,6 +1508,16 @@ const STEP_PRELUDE = String.raw`
+       return value;
+     };`;
+ const CONTROL_KEY = "__codemode_control__";
++function releaseRpcResult(value) {
++	if (!value || typeof value !== "object") return value;
++	const copy = Array.isArray(value) ? [...value] : { ...value };
++	const dispose = value[Symbol.dispose];
++	if (typeof dispose === "function") dispose.call(value);
++	return copy;
++}
++async function rpcResult(promise) {
++	return releaseRpcResult(await promise);
++}
+ function createCursor() {
+ 	let n = 0;
+ 	return { next: () => n++ };
+@@ -1565,31 +1591,48 @@ function validateConnectorNames(connectors) {
+ 		seen.add(name);
+ 	}
+ }
+-function buildConnectorBindings(setup, runtime, executionId, cursor) {
++function createInFlightTracker() {
++	const pending = /* @__PURE__ */ new Set();
++	return {
++		track(promise) {
++			pending.add(promise);
++			promise.then(() => pending.delete(promise), () => pending.delete(promise));
++			return promise;
++		},
++		async drain() {
++			while (pending.size > 0) await Promise.allSettled([...pending]);
++		}
++	};
++}
++function buildConnectorBindings(setup, runtime, executionId, cursor, inFlight) {
+ 	return setup.descriptions.map((desc) => ({
+ 		name: desc.name,
+-		binding: new ConnectorCallTarget(async (method, args) => {
++		binding: new ConnectorCallTarget((method, args) => inFlight.track((async () => {
+ 			try {
++				if (!Object.hasOwn(desc.descriptors, method)) throw new Error(`Unknown method: ${desc.name}.${method}. Use codemode.describe before calling a connector method.`);
+ 				const seq = cursor.next();
+ 				const annotation = setup.annotations[`${desc.name}.${method}`];
+-				const requiresApproval = annotation?.requiresApproval ?? false;
+ 				const ephemeral = annotation?.replay === "reexecute";
+-				const decision = await runtime.decide(executionId, seq, desc.name, method, args, requiresApproval, ephemeral);
+-				if (decision.kind === "replay") return decision.result;
+-				if (decision.kind === "pause") return { [CONTROL_KEY]: "pause" };
+ 				const connector = setup.connectorsByName.get(desc.name);
+ 				if (!connector) throw new Error(`Unknown connector: ${desc.name}`);
++				let decision = await rpcResult(runtime.decide(executionId, seq, desc.name, method, args, annotation?.requiresApproval === "dynamic" ? void 0 : annotation?.requiresApproval ?? false, ephemeral));
++				if (decision.kind === "authorize") {
++					const requiresApproval = await connector.requiresApproval(method, args, { executionId });
++					decision = await rpcResult(runtime.decide(executionId, seq, desc.name, method, args, requiresApproval, ephemeral));
++				}
++				if (decision.kind === "replay") return decision.result;
++				if (decision.kind === "pause") return { [CONTROL_KEY]: "pause" };
+ 				const result = await connector.executeTool(method, args, { executionId });
+-				await runtime.recordResult(executionId, decision.seq, result);
++				await rpcResult(runtime.recordResult(executionId, decision.seq, result));
+ 				return result;
+ 			} catch (err) {
+-				console.error(`codemode: ${desc.name}.${method} failed (execution ${executionId})`, err);
++				console.warn(`codemode: ${desc.name}.${method} failed (execution ${executionId})`, err);
+ 				return {
+ 					[CONTROL_KEY]: "error",
+ 					message: err instanceof Error ? err.message : String(err)
+ 				};
+ 			}
+-		})
++		})()))
+ 	}));
+ }
+ function createPlatformProvider(setup, bindings, runtime, executor, executionId, cursor) {
+@@ -1598,10 +1641,10 @@ function createPlatformProvider(setup, bindings, runtime, executor, executionId,
+ 		name: "codemode",
+ 		prelude: STEP_PRELUDE,
+ 		fns: {
+-			search: async (query) => searchConnectors(String(query), descriptions, await runtime.listSnippets()),
+-			describe: async (target) => describeTarget(String(target), descriptions, await runtime.listSnippets()),
++			search: async (query) => searchConnectors(String(query), descriptions, await rpcResult(runtime.listSnippets())),
++			describe: async (target) => describeTarget(String(target), descriptions, await rpcResult(runtime.listSnippets())),
+ 			run: async (...args) => {
+-				const snippet = await runtime.getSnippet(String(args[0]));
++				const snippet = await rpcResult(runtime.getSnippet(String(args[0])));
+ 				if (!snippet) return { error: `Snippet "${args[0]}" not found.` };
+ 				const missing = missingConnectors(snippet.connectors, new Set(setup.connectorsByName.keys()));
+ 				if (missing.length > 0) return { error: `Snippet "${args[0]}" requires connector(s) ${missing.map((m) => `"${m}"`).join(", ")} that are not configured on this runtime.` };
+@@ -1612,9 +1655,9 @@ function createPlatformProvider(setup, bindings, runtime, executor, executionId,
+ 					connectors: bindings
+ 				})).result;
+ 			},
+-			__stepDecide: async (name) => runtime.decide(executionId, cursor.next(), STEP_CONNECTOR, String(name), void 0, false),
++			__stepDecide: async (name) => rpcResult(runtime.decide(executionId, cursor.next(), STEP_CONNECTOR, String(name), void 0, false)),
+ 			__stepRecord: async (seq, value) => {
+-				await runtime.recordResult(executionId, Number(seq), value);
++				await rpcResult(runtime.recordResult(executionId, Number(seq), value));
+ 				return true;
+ 			}
+ 		}
+@@ -1661,12 +1704,14 @@ function buildDescription(connectors, customDescription, connectorHints) {
+ }
+ async function runPass(executionId, code, setup, runtime, executor, transformResult) {
+ 	const cursor = createCursor();
+-	const bindings = buildConnectorBindings(setup, runtime, executionId, cursor);
++	const inFlight = createInFlightTracker();
++	const bindings = buildConnectorBindings(setup, runtime, executionId, cursor, inFlight);
+ 	const platformProvider = createPlatformProvider(setup, bindings, runtime, executor, executionId, cursor);
+ 	const connectors = [...setup.connectorsByName.values()];
+ 	let ended = false;
+ 	const endPass = async (status) => {
+ 		ended = true;
++		await inFlight.drain();
+ 		await notifyPassEnd(connectors, executionId, status);
+ 		if (status !== "paused") await disposeConnectors(connectors, executionId, status);
+ 	};
+@@ -1683,14 +1728,14 @@ async function runPass(executionId, code, setup, runtime, executor, transformRes
+ 		} catch (err) {
+ 			threw = err;
+ 		}
+-		const execution = await runtime.getExecution(executionId);
++		const execution = await rpcResult(runtime.getExecution(executionId));
+ 		const calls = execution?.log;
+ 		if (execution?.status === "paused") {
+ 			await endPass("paused");
+ 			return {
+ 				status: "paused",
+ 				executionId,
+-				pending: await runtime.listPending(executionId),
++				pending: await rpcResult(runtime.listPending(executionId)),
+ 				calls
+ 			};
+ 		}
+@@ -1791,11 +1836,23 @@ function runtimeFacetName(name = DEFAULT_RUNTIME_NAME) {
+ 	if (!/^[a-zA-Z0-9_.-]+$/.test(name)) throw new Error(`Invalid codemode runtime name "${name}" — use letters, digits, "_", "-" or "."`);
+ 	return `codemode:${name}`;
+ }
++// company-brain: facets need Dynamic Workers, which need Workers Paid. The
++// runtime only touches its own cm_* tables, so it runs on the host Durable
++// Object's storage instead, one instance per runtime name.
++const inProcessRuntimes = /* @__PURE__ */ new WeakMap();
+ function getRuntime(ctx, name) {
+-	const facetCtx = ctx;
+-	const runtimeClass = facetCtx.exports?.CodemodeRuntime;
+-	if (!runtimeClass) throw new Error("CodemodeRuntime is not exported from this Worker entry. Add the @cloudflare/codemode/vite plugin to your Vite config, or manually export { CodemodeRuntime } from \"@cloudflare/codemode\".");
+-	return facetCtx.facets.get(runtimeFacetName(name), () => ({ class: runtimeClass }));
++	const key = runtimeFacetName(name);
++	let runtimes = inProcessRuntimes.get(ctx);
++	if (!runtimes) {
++		runtimes = /* @__PURE__ */ new Map();
++		inProcessRuntimes.set(ctx, runtimes);
++	}
++	let runtime = runtimes.get(key);
++	if (!runtime) {
++		runtime = new CodemodeRuntime(ctx, {});
++		runtimes.set(key, runtime);
++	}
++	return runtime;
+ }
+ /** Internal: the runtime handle uses this to reach the facet. Not public API. */
+ const getCodemodeRuntime = getRuntime;
+@@ -1811,7 +1868,7 @@ function missingConnectors(required, available) {
+ async function resumeCodemode(options) {
+ 	const runtime = getRuntime(options.ctx, options.name);
+ 	const setup = await loadSetup(options.connectors);
+-	const existing = await runtime.getExecution(options.executionId);
++	const existing = await rpcResult(runtime.getExecution(options.executionId));
+ 	if (existing) {
+ 		const missing = missingConnectors(existing.connectors, new Set(setup.connectorsByName.keys()));
+ 		if (missing.length > 0) return {
+@@ -1820,7 +1877,7 @@ async function resumeCodemode(options) {
+ 			error: `Execution "${options.executionId}" requires connector(s) ${missing.map((m) => `"${m}"`).join(", ")} that are not configured on this runtime.`
+ 		};
+ 	}
+-	const execution = await runtime.resume(options.executionId);
++	const execution = await rpcResult(runtime.resume(options.executionId));
+ 	if (!execution) {
+ 		const error = existing ? `Execution "${options.executionId}" is not paused (status: ${existing.status}); only a paused run can be approved.` : `No execution "${options.executionId}" to resume.`;
+ 		return {
+@@ -1844,7 +1901,7 @@ async function rejectCodemode(options) {
+ 	return terminated;
+ }
+ async function pendingCodemode(options) {
+-	return getRuntime(options.ctx, options.name).listPending(options.executionId);
++	return rpcResult(getRuntime(options.ctx, options.name).listPending(options.executionId));
+ }
+ /**
+ * Expire paused (awaiting-approval) executions idle past `maxAgeMs`, marking
+@@ -1855,14 +1912,14 @@ async function pendingCodemode(options) {
+ * Designed to be called from a recurring alarm/scheduled task.
+ */
+ async function expireCodemode(options) {
+-	const expired = await getRuntime(options.ctx, options.name).expirePaused(options.maxAgeMs);
++	const expired = await rpcResult(getRuntime(options.ctx, options.name).expirePaused(options.maxAgeMs));
+ 	for (const executionId of expired) await disposeConnectors(options.connectors, executionId, "rejected");
+ 	return expired;
+ }
+ async function rollbackCodemode(options) {
+ 	const runtime = getRuntime(options.ctx, options.name);
+ 	const byName = new Map(options.connectors.map((c) => [c.name(), c]));
+-	const actions = await runtime.actionsToRevert(options.executionId);
++	const actions = await rpcResult(runtime.actionsToRevert(options.executionId));
+ 	let reverted = 0;
+ 	const failures = [];
+ 	for (const action of actions) {
+@@ -1950,11 +2007,11 @@ var DefaultCodemodeRuntimeHandle = class {
+ 		});
+ 	}
+ 	executions(limit) {
+-		return this.#runtime().listExecutions(limit);
++		return rpcResult(this.#runtime().listExecutions(limit));
+ 	}
+ 	async deleteExecution(id) {
+ 		const runtime = this.#runtime();
+-		const state = await runtime.getExecution(id);
++		const state = await rpcResult(runtime.getExecution(id));
+ 		const deleted = await runtime.deleteExecution(id);
+ 		if (deleted && (state?.status === "paused" || state?.status === "running")) await disposeConnectors(this.#options.connectors, id, "rejected");
+ 		return deleted;
+@@ -1963,10 +2020,10 @@ var DefaultCodemodeRuntimeHandle = class {
+ 		return this.#runtime().pruneExecutions(keep);
+ 	}
+ 	saveSnippet(name, options) {
+-		return this.#runtime().saveSnippet(name, options);
++		return rpcResult(this.#runtime().saveSnippet(name, options));
+ 	}
+ 	snippets() {
+-		return this.#runtime().listSnippets();
++		return rpcResult(this.#runtime().listSnippets());
+ 	}
+ 	deleteSnippet(name) {
+ 		return this.#runtime().deleteSnippet(name);
