@@ -214,9 +214,8 @@ const THREAD_CONTEXT_PAGE_SIZE = 200
 const THREAD_CONTEXT_MAX_MESSAGES = 600
 const THREAD_CONTEXT_MAX_PAGES = 4
 const THREAD_TRIAGE_CONTEXT_LIMIT = 50
-const SLACK_ACK_REACTION = "ack"
-const SLACK_ACK_FALLBACK_REACTION = "white_check_mark"
-const SLACK_COMPLETED_REPLY_REACTION = "brain"
+const SLACK_ACK_REACTION = "brain"
+const SLACK_COMPLETED_REPLY_REACTION = "white_check_mark"
 
 function slackMemoryScopeForTurn(args: {
 	isDM: boolean
@@ -2474,26 +2473,13 @@ async function runSlackTurnInner(
 		if (!canReactToMessage) return null
 		if (ackReactionPromise) return await ackReactionPromise
 		ackReactionPromise = (async () => {
-			if (
-				await addSlackReaction(
-					botToken,
-					channel,
-					messageTs,
-					SLACK_ACK_REACTION,
-					{
-						quietErrors: ["invalid_name"],
-					},
-				)
-			) {
-				return SLACK_ACK_REACTION
-			}
 			return (await addSlackReaction(
 				botToken,
 				channel,
 				messageTs,
-				SLACK_ACK_FALLBACK_REACTION,
+				SLACK_ACK_REACTION,
 			))
-				? SLACK_ACK_FALLBACK_REACTION
+				? SLACK_ACK_REACTION
 				: null
 		})()
 		return await ackReactionPromise
