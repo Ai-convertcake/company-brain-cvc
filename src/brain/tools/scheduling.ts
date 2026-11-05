@@ -389,7 +389,7 @@ async function runScheduledTaskInner(
 		payload.title ?? `${cadence === "weekly" ? "Weekly" : "Daily"} Digest`
 	const framed =
 		payload.kind === "digest"
-			? `Produce the scheduled update "${heading}" to post to the team now. Cover activity from the ${window} only. Start your reply with the heading "${heading}", then follow this instruction:\n\n${payload.instruction}\n\nThis is read-only: do NOT create, modify, comment, post, send, or connect anything — only read and summarize. Your reply text is posted to the channel automatically.`
+			? `Produce the scheduled update "${heading}" to post to the team now. Cover activity from the ${window}, unless the instruction below sets a different time window, which takes priority. Start your reply with the heading "${heading}", then follow this instruction:\n\n${payload.instruction}\n\nThis is read-only: do NOT create, modify, comment, post, send, or connect anything — only read and summarize. Your reply text is posted to the channel automatically.`
 			: `A scheduled reminder you set earlier is now due. Write the message to deliver — your reply text is posted to Slack automatically, so do NOT use any tool to post, send, or connect Slack. Just produce the reminder itself.\n\nReminder: ${payload.instruction}`
 
 	const traceId = generateId()

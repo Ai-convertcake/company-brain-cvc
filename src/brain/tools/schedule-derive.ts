@@ -1,9 +1,9 @@
 import type { ScheduledTaskPayload, ScheduleWhen } from "./scheduling"
 
-// Day-of-week field pinned to a specific day => weekly, otherwise daily.
+// One day of the week => weekly. Every day or several days, like Mon-Fri => daily.
 export function cronToCadence(cron: string): "daily" | "weekly" {
 	const dow = cron.trim().split(/\s+/)[4]
-	return dow && dow !== "*" ? "weekly" : "daily"
+	return dow && /^\w+$/.test(dow) ? "weekly" : "daily"
 }
 
 // Recurring channel digests live on the Automations page, so admins can see and

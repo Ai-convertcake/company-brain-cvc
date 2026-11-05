@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest"
-import { savesAsAutomation } from "./schedule-derive"
+import { cronToCadence, savesAsAutomation } from "./schedule-derive"
+
+describe("cronToCadence", () => {
+	it("treats a single weekday as weekly", () => {
+		expect(cronToCadence("0 2 * * 1")).toBe("weekly")
+		expect(cronToCadence("0 2 * * MON")).toBe("weekly")
+	})
+
+	it("treats every day and several days as daily", () => {
+		expect(cronToCadence("0 2 * * *")).toBe("daily")
+		expect(cronToCadence("0 2 * * 1-5")).toBe("daily")
+		expect(cronToCadence("0 2 * * 1,3,5")).toBe("daily")
+	})
+})
 
 describe("savesAsAutomation", () => {
 	const recurring = { kind: "cron", cron: "0 2 * * 1-5" } as const
