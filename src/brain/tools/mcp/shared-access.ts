@@ -33,6 +33,22 @@ export function observedMemoryScope(channelId: string, isPrivate: boolean) {
 		: undefined
 }
 
+/** Read-only digests may use shared tools only when posting to an approved private channel. */
+export function scheduledRunMayUseShared(args: {
+	env: Pick<Env, "SHARED_MCP_CHANNELS">
+	kind: string | undefined
+	readOnly: boolean | undefined
+	target: string
+	isPrivate: boolean | undefined
+}): boolean {
+	return (
+		args.kind === "digest" &&
+		args.readOnly === true &&
+		args.isPrivate === true &&
+		isApprovedSharedMcpChannel(args.env, args.target)
+	)
+}
+
 // Org-shared credentials reach everyone who can talk to the bot, so they stay
 // hidden unless the turn opted in. Automations and rollout checks never do.
 export function connectionsActorMayUse<T extends { userId: string | null }>(

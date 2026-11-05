@@ -7,7 +7,11 @@ import {
 	type BrainObservabilityInput,
 	flushBrainTelemetry,
 } from "../observability"
-import { openSlackConversation, postSlackReply } from "../slack/client"
+import {
+	getSlackConversationInfo,
+	openSlackConversation,
+	postSlackReply,
+} from "../slack/client"
 import { isDirectSlackChannel } from "../slack/events"
 import { recordMessageTrace } from "../slack/message-trace"
 import { createSlackReplyReferenceResolver } from "../slack/references"
@@ -51,6 +55,7 @@ export type ScheduledTaskPayload = {
 	runTrigger?: "scheduled" | "run_now"
 }
 
+import { scheduledRunMayUseShared } from "./mcp/shared-access"
 import { derivedScheduleFields } from "./schedule-derive"
 
 export { cronToCadence, derivedScheduleFields } from "./schedule-derive"
@@ -360,6 +365,16 @@ async function runScheduledTaskInner(
 		return
 	}
 	const directDelivery = isDirectSlackChannel(target)
+	const allowSharedConnections =
+		!dm &&
+		!directDelivery &&
+		scheduledRunMayUseShared({
+			env,
+			kind: payload.kind,
+			readOnly: payload.readOnly,
+			target,
+			isPrivate: (await getSlackConversationInfo(botToken, target))?.isPrivate,
+		})
 	console.log(
 		`[company-brain] scheduled task ${schedule.id} fire org=${org.id} deliverTo=${payload.deliverTo ?? "origin"} target=${target} label="${payload.label}"`,
 	)
@@ -409,7 +424,7 @@ async function runScheduledTaskInner(
 		agent,
 		org,
 		userId: payload.creatorUserId ?? ws.installedByUserId ?? ws.orgId,
-		actor,
+		actor: { ...actor, allowSharedConnections },
 		question: framed,
 		threadText: "",
 		slackLookup: {

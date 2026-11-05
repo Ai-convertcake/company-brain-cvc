@@ -4,6 +4,7 @@ import {
 	isApprovedLearningChannel,
 	observedMemoryScope,
 	observeStartTs,
+	scheduledRunMayUseShared,
 	isApprovedSharedMcpChannel,
 } from "./shared-access"
 
@@ -27,6 +28,30 @@ describe("shared MCP access", () => {
 		expect(isApprovedSharedMcpChannel(env, "C333")).toBe(false)
 		expect(isApprovedSharedMcpChannel(env, "")).toBe(false)
 		expect(isApprovedSharedMcpChannel({}, "C111")).toBe(false)
+	})
+})
+
+describe("scheduled runs and shared tools", () => {
+	const allowed = {
+		env: { SHARED_MCP_CHANNELS: "C111" },
+		kind: "digest",
+		readOnly: true,
+		target: "C111",
+		isPrivate: true,
+	}
+
+	it("allows only a read-only digest to an approved private channel", () => {
+		expect(scheduledRunMayUseShared(allowed)).toBe(true)
+		for (const change of [
+			{ kind: "reminder" },
+			{ readOnly: undefined },
+			{ target: "C222" },
+			{ isPrivate: false },
+			{ isPrivate: undefined },
+			{ env: {} },
+		]) {
+			expect(scheduledRunMayUseShared({ ...allowed, ...change })).toBe(false)
+		}
 	})
 })
 
