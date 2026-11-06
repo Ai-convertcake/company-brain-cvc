@@ -187,3 +187,17 @@ export const sandboxLimits = {
 	defaultTimeoutSec: DEFAULT_TIMEOUT_SEC,
 	maxTimeoutSec: MAX_TIMEOUT_SEC,
 }
+
+// Relative paths mean the workspace, where sandbox_run runs, not the filesystem
+// root: "test.docx" is workspace/test.docx.
+export function workspacePath(
+	path: string | undefined,
+	defaultCwd: string,
+): string {
+	const cleaned = normalizePath(path, defaultCwd).replace(/^\.\//, "")
+	return cleaned.startsWith("/") ||
+		cleaned === defaultCwd ||
+		cleaned.startsWith(`${defaultCwd}/`)
+		? cleaned
+		: `${defaultCwd}/${cleaned}`
+}

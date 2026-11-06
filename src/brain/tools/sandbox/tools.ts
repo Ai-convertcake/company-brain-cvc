@@ -10,8 +10,8 @@ import {
 } from "./client"
 import {
 	normalizeCwd,
-	normalizePath,
 	sandboxLimits,
+	workspacePath,
 	validateRepoUrl,
 } from "./guards"
 import {
@@ -227,7 +227,7 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 				if (!session) return missingSession()
 				const out = await client.listFiles({
 					sandboxId: session.sandboxId,
-					path: normalizePath(path, session.defaultCwd),
+					path: workspacePath(path, session.defaultCwd),
 					glob,
 				})
 				touchSandboxSession(agent, session)
@@ -250,7 +250,7 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 				if (!session) return missingSession()
 				const out = await client.readTextFile({
 					sandboxId: session.sandboxId,
-					path: normalizePath(path, session.defaultCwd),
+					path: workspacePath(path, session.defaultCwd),
 				})
 				touchSandboxSession(agent, session)
 				return out
@@ -274,7 +274,7 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 				if (!slackDestination) {
 					const out = await client.getArtifact({
 						sandboxId: session.sandboxId,
-						path: normalizePath(path, session.defaultCwd),
+						path: workspacePath(path, session.defaultCwd),
 					})
 					touchSandboxSession(agent, session)
 					return {
@@ -284,7 +284,7 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 						truncated: false,
 					}
 				}
-				const artifactPath = normalizePath(path, session.defaultCwd)
+				const artifactPath = workspacePath(path, session.defaultCwd)
 				const existing = artifactUploads.get(artifactPath)
 				if (existing) {
 					const uploaded = await existing
@@ -315,7 +315,12 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 						filename,
 						sizeBytes: out.sizeBytes,
 						content: out.content,
-						altText: `Generated artifact: ${filename}`,
+						// Alt text is for images only. Sent with a .docx or .pdf, Slack
+						// completed the upload but never shared the file (seen here and
+						// in python-slack-sdk#1575).
+						...(/\.(png|jpe?g|gif|webp)$/i.test(filename)
+							? { altText: `Generated artifact: ${filename}` }
+							: {}),
 						signal: slackDestination.signal,
 						canShare: slackDestination.canShare,
 					})
@@ -381,21 +386,9 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 						if (!session) return missingSession()
 						// Same as sandbox_run: a write can replace an uploaded artifact.
 						artifactUploads.clear()
-						// Relative paths land where sandbox_run runs (the workspace), not
-						// at the filesystem root, so "python3 file.py" finds the file.
-						const cleaned = normalizePath(path, session.defaultCwd).replace(
-							/^\.\//,
-							"",
-						)
-						const resolved =
-							cleaned.startsWith("/") ||
-							cleaned === session.defaultCwd ||
-							cleaned.startsWith(`${session.defaultCwd}/`)
-								? cleaned
-								: `${session.defaultCwd}/${cleaned}`
 						const out = await writeTextFile({
 							sandboxId: session.sandboxId,
-							path: resolved,
+							path: workspacePath(path, session.defaultCwd),
 							content,
 						})
 						touchSandboxSession(agent, session)
