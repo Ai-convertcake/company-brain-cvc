@@ -80,7 +80,7 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 
 	const sandbox_start = deps.tool({
 		description:
-			"Create or reuse an isolated workspace for code/repo/file/PDF work. Use this before sandbox_run, sandbox_read_file, sandbox_list_files, or sandbox_get_artifact. The sandbox has no internet, so repo URLs and package installs fail. For documents use the installed python-docx and openpyxl, make PDFs with `HOME=/tmp soffice --headless --convert-to pdf file.docx`, and set Tahoma as the font for Thai text.",
+			"Create or reuse an isolated workspace for code/repo/file/PDF work. Use this before sandbox_run, sandbox_read_file, sandbox_list_files, or sandbox_get_artifact. The sandbox has no internet, so repo URLs and package installs fail. For documents use the installed python-docx and openpyxl, make PDFs with `HOME=/tmp soffice --headless --convert-to pdf file.docx`. Thai in Word files: font.name alone does not cover Thai, so for the Normal and Heading styles set all four rFonts to Tahoma: `f = style.element.get_or_add_rPr().get_or_add_rFonts(); [f.set(qn(a), 'Tahoma') for a in ('w:ascii', 'w:hAnsi', 'w:cs', 'w:eastAsia')]` (qn from docx.oxml.ns). Slack's preview of a .docx can still show Thai as boxes, so whenever you share a Word file with Thai text, also convert it to PDF and share both.",
 		inputSchema: deps.z.object({
 			goal: deps.z
 				.string()
@@ -337,7 +337,6 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 						fileId: upload.fileId,
 						sizeBytes: out.sizeBytes,
 						path: out.path,
-						note: upload.note,
 					}
 				})()
 				artifactUploads.set(artifactPath, uploadPromise)
@@ -351,8 +350,6 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 					throw error
 				}
 				return {
-					// ponytail: uploadNote is diagnostic; drop it with logSlackFileShares.
-					uploadNote: uploaded.note,
 					path: uploaded.path,
 					sizeBytes: uploaded.sizeBytes,
 					uploaded: true,

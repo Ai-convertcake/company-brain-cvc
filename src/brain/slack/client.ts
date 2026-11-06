@@ -16,7 +16,7 @@ type SlackOkResponse = { ok: boolean; error?: string }
 type SlackFileUploadBody = ArrayBuffer | ReadableStream<Uint8Array>
 
 export type SlackFileUploadResult =
-	| { ok: true; fileId: string; note?: string }
+	| { ok: true; fileId: string }
 	| {
 			ok: false
 			stage: "request_upload_url" | "upload_bytes" | "complete_upload"
@@ -72,7 +72,6 @@ export async function uploadSlackFile(
 	},
 ): Promise<SlackFileUploadResult> {
 	const length = args.sizeBytes
-	let uploadNote = ""
 	const requestSignal = () => {
 		const timeout = AbortSignal.timeout(SLACK_FILE_UPLOAD_TIMEOUT_MS)
 		return args.signal ? AbortSignal.any([args.signal, timeout]) : timeout
@@ -152,45 +151,16 @@ export async function uploadSlackFile(
 				"upload_bytes",
 				`size_mismatch expected=${length} got=${bytes.byteLength}`,
 			)
-		// Multipart form, as in Slack's own example (curl -F). Raw octet-stream
-		// bytes were stored with no file type and never shared to the channel.
+		// Multipart form as in Slack's curl example, with the bot token as
+		// Slack's Node SDK sends it.
 		const form = new FormData()
 		form.append("file", new Blob([bytes]), args.filename)
-		// Slack's own Node SDK sends the bot token on this POST too. Redirects are
-		// followed by hand: fetch's default turns a 301/302 POST into a GET that
-		// drops the file, which would still end in a 200.
-		let url = ticket.upload_url
-		const hops: string[] = []
-		let response = await fetch(url, {
+		const response = await fetch(ticket.upload_url, {
 			method: "POST",
 			signal: requestSignal(),
 			headers: { authorization: `Bearer ${botToken}` },
 			body: form,
-			redirect: "manual",
 		})
-		while (
-			response.status >= 300 &&
-			response.status < 400 &&
-			response.headers.get("location") &&
-			hops.length < 3
-		) {
-			url = new URL(response.headers.get("location") ?? "", url).toString()
-			hops.push(`${response.status}->${new URL(url).host}`)
-			response = await fetch(url, {
-				method: "POST",
-				signal: requestSignal(),
-				headers: { authorization: `Bearer ${botToken}` },
-				body: form,
-				redirect: "manual",
-			})
-		}
-		// ponytail: diagnostic, remove with logSlackFileShares.
-		const uploadReply = await response
-			.clone()
-			.text()
-			.catch(() => "")
-		uploadNote = `upload=${response.status} hops=${hops.join(",") || "none"} reply=${uploadReply.slice(0, 60).replace(/\s+/g, " ")}`
-		console.log(`[slack] upload bytes file=${ticket.file_id} ${uploadNote}`)
 		if (!response.ok) {
 			await cancelSlackFileUploadBody(args.content)
 			return uploadFailure("upload_bytes", `http_${response.status}`)
@@ -231,61 +201,16 @@ export async function uploadSlackFile(
 		}
 		const complete = (await response
 			.json()
-			.catch(() => ({}))) as SlackOkResponse & {
-			files?: Array<{ id?: string; size?: number; shares?: unknown }>
-		}
-		console.log(
-			`[slack] completeUploadExternal ok=${complete.ok} error=${complete.error ?? "-"} channel=${args.channel} thread=${args.threadTs ?? "-"} files=${JSON.stringify(complete.files?.map((f) => ({ id: f.id, size: f.size, shared: Boolean(f.shares && Object.keys(f.shares as object).length) })) ?? [])}`,
-		)
+			.catch(() => ({}))) as SlackOkResponse
 		if (complete.ok !== true) {
 			return uploadFailure(
 				"complete_upload",
 				complete.error ?? "invalid_response",
 			)
 		}
-		await logSlackFileShares(botToken, ticket.file_id)
-		return { ok: true, fileId: ticket.file_id, note: uploadNote }
+		return { ok: true, fileId: ticket.file_id }
 	} catch (error) {
 		return uploadFailure("complete_upload", error)
-	}
-}
-
-// ponytail: diagnostic for sandbox files Slack accepted but never showed in the
-// thread (2026-11-06). Remove once the cause is known; it adds up to ~12 s.
-async function logSlackFileShares(botToken: string, fileId: string) {
-	for (const waitMs of [2000, 3000, 5000]) {
-		await new Promise((resolve) => setTimeout(resolve, waitMs))
-		try {
-			const res = await fetch(
-				`${SLACK_API}/files.info?file=${encodeURIComponent(fileId)}`,
-				{ headers: { authorization: `Bearer ${botToken}` } },
-			)
-			const info = (await res.json().catch(() => ({}))) as {
-				ok?: boolean
-				error?: string
-				file?: {
-					size?: number
-					mimetype?: string
-					mode?: string
-					is_public?: boolean
-					channels?: string[]
-					groups?: string[]
-					shares?: { public?: object; private?: object }
-				}
-			}
-			const f = info.file
-			const shares = {
-				public: Object.keys(f?.shares?.public ?? {}),
-				private: Object.keys(f?.shares?.private ?? {}),
-			}
-			console.log(
-				`[slack] files.info file=${fileId} after=${waitMs}ms ok=${info.ok} error=${info.error ?? "-"} size=${f?.size} mimetype=${f?.mimetype} mode=${f?.mode} public=${f?.is_public} channels=${JSON.stringify(f?.channels ?? [])} groups=${JSON.stringify(f?.groups ?? [])} shares=${JSON.stringify(shares)}`,
-			)
-			if (!info.ok || shares.public.length || shares.private.length) return
-		} catch (error) {
-			console.warn(`[slack] files.info file=${fileId} failed:`, error)
-			return
-		}
 	}
 }
 
