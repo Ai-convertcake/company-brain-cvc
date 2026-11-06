@@ -36,6 +36,8 @@
 		"SHARED_MCP_CHANNELS": "C0CF6LJUHGR",
 		// Private Slack channels the bot may learn from without being mentioned.
 		"LEARNING_CHANNELS": "C08M0F5R50W,C056FDJMHM4",
+		// "on": no DMs, no automatic team invites, no automatic channel joins.
+		"PILOT_LOCKDOWN": "on",
 		// MCP servers we run and know are read-only.
 		"READ_ONLY_MCP_SERVERS": "companybrainmcp"
 	},

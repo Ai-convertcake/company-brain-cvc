@@ -38,6 +38,7 @@ import {
 	getWorkspaceByTeamId,
 } from "../slack/workspace"
 import { mcpAppDisplayName } from "../tools/mcp/directory"
+import { isPilotLockdown } from "../tools/mcp/shared-access"
 import { brainAgent, type CompanyBrainAgent } from "./agent"
 import { getHomeChannel } from "./home-channel"
 import { getResearchState } from "./research"
@@ -639,6 +640,7 @@ export async function startAutomaticTeamInviteRollout(
 	ensureTeamInviteTables(agent)
 	const prior = currentRun(agent)
 	const env = brainAgent(agent).env
+	if (isPilotLockdown(env)) return
 	const ws = await getWorkspaceByTeamId(env, payload.teamId)
 	if (!ws || ws.orgId !== agent.name) return
 
@@ -1153,6 +1155,7 @@ export async function startTeamInviteWave(
 	payload: TeamInviteStart,
 ): Promise<void> {
 	ensureTeamInviteTables(agent)
+	if (isPilotLockdown(brainAgent(agent).env)) return
 	// Synchronous claim before the first await: concurrent/replayed clicks would
 	// otherwise each pass the busy check, generate paid starters, and clobber
 	// each other's run row.
@@ -1663,6 +1666,7 @@ async function processSlackTeamJoin(
 ): Promise<SlackLifecycleOutcome> {
 	try {
 		ensureTeamInviteTables(agent)
+		if (isPilotLockdown(brainAgent(agent).env)) return TERMINAL_LIFECYCLE_OUTCOME
 		const user = payload.user
 		if (
 			user.deleted ||

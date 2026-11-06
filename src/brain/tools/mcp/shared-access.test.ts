@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest"
 import {
 	connectionsActorMayUse,
 	isApprovedLearningChannel,
+	isApprovedSearchChannel,
+	isPilotLockdown,
 	observedMemoryScope,
 	observeStartTs,
 	scheduledRunMayUseShared,
@@ -92,5 +94,20 @@ describe("private channel learning", () => {
 			channelId: "C111",
 		})
 		expect(observedMemoryScope("C222", false)).toBeUndefined()
+	})
+})
+
+describe("pilot lockdown", () => {
+	it("is on only when PILOT_LOCKDOWN is on", () => {
+		expect(isPilotLockdown({ PILOT_LOCKDOWN: "on" })).toBe(true)
+		expect(isPilotLockdown({ PILOT_LOCKDOWN: "off" })).toBe(false)
+		expect(isPilotLockdown({})).toBe(false)
+	})
+	it("allows search only in the approved channels", () => {
+		const env = { SHARED_MCP_CHANNELS: "C1", LEARNING_CHANNELS: "C2, C3" }
+		expect(isApprovedSearchChannel(env, "C1")).toBe(true)
+		expect(isApprovedSearchChannel(env, "C3")).toBe(true)
+		expect(isApprovedSearchChannel(env, "C9")).toBe(false)
+		expect(isApprovedSearchChannel({}, "C1")).toBe(false)
 	})
 })

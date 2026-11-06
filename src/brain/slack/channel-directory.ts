@@ -4,6 +4,7 @@ import {
 	getSlackConversationInfo,
 	type SlackConversation,
 } from "./client"
+import { isApprovedSearchChannel } from "../tools/mcp/shared-access"
 
 const CHANNELS_CACHE_TTL_SECONDS = 10 * 60
 
@@ -168,12 +169,13 @@ export type ChannelSearchAccess =
 				| "private_channel_requires_membership"
 				| "private_channel_non_dm_response"
 				| "unknown_asker"
+				| "not_approved_channel"
 	  }
 
 export type SlackResponseSurface = "public_channel" | "private_channel" | "dm"
 
 export async function checkAskerCanSearchChannel(
-	_env: Env,
+	env: Env,
 	_teamId: string | undefined,
 	botToken: string,
 	channel: SlackConversation,
@@ -191,6 +193,10 @@ export async function checkAskerCanSearchChannel(
 	const isCurrentChannel = channel.id === opts?.currentChannelId
 	if (!isCurrentChannel && !opts?.isOrgMember) {
 		return { ok: false, reason: "not_org_member" }
+	}
+	// Other channels are read only when an admin approved them.
+	if (!isCurrentChannel && !isApprovedSearchChannel(env, channel.id)) {
+		return { ok: false, reason: "not_approved_channel" }
 	}
 
 	// Full members can read any public channel, but Slack guests only see

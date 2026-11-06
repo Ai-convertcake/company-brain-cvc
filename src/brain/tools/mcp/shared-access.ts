@@ -69,3 +69,19 @@ export function connectionsActorMayUse<T extends { userId: string | null }>(
 		? connections
 		: connections.filter((connection) => connection.userId !== null)
 }
+
+/** Pilot lockdown: no DMs, no automatic team invites, no automatic channel joins. */
+export function isPilotLockdown(env: Pick<Env, "PILOT_LOCKDOWN">): boolean {
+	return env.PILOT_LOCKDOWN === "on"
+}
+
+/** Channels Slack search may read besides the current one: the approved lists. */
+export function isApprovedSearchChannel(
+	env: Pick<Env, "SHARED_MCP_CHANNELS" | "LEARNING_CHANNELS">,
+	channelId: string,
+): boolean {
+	return (
+		isApprovedSharedMcpChannel(env, channelId) ||
+		isApprovedLearningChannel(env, channelId)
+	)
+}

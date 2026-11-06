@@ -669,6 +669,9 @@ export async function assembleTurnTools(
 						if (access.reason === "private_channel_non_dm_response") {
 							return `I can't answer from #${hit.name} here. DM me and I can answer there.`
 						}
+						if (access.reason === "not_approved_channel") {
+							return `#${hit.name} isn't on the list of channels I'm allowed to search. Ask in #${hit.name} directly, or ask an admin to approve it.`
+						}
 						return "I can only search other Slack channels for confirmed org members."
 					}
 					lookupCtx = { ...slackLookup, channel: hit.id }

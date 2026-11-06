@@ -694,6 +694,13 @@ export async function runSlackChannelsSearch(
 		) {
 			return "I can only search other Slack channels for confirmed org members."
 		}
+		if (
+			denied.some(
+				(x) => !x.access.ok && x.access.reason === "not_approved_channel",
+			)
+		) {
+			return "Those channels aren't on the list I'm allowed to search. I can search only approved channels and this one."
+		}
 		const parts = [
 			"No searchable channels matched. Private channels are searchable only by their members.",
 		]

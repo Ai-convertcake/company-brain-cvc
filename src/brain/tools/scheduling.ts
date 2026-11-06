@@ -55,7 +55,7 @@ export type ScheduledTaskPayload = {
 	runTrigger?: "scheduled" | "run_now"
 }
 
-import { scheduledRunMayUseShared } from "./mcp/shared-access"
+import { isPilotLockdown, scheduledRunMayUseShared } from "./mcp/shared-access"
 import { derivedScheduleFields } from "./schedule-derive"
 
 export { cronToCadence, derivedScheduleFields } from "./schedule-derive"
@@ -355,6 +355,12 @@ async function runScheduledTaskInner(
 	}
 
 	const dm = payload.deliverTo === "dm"
+	if (dm && isPilotLockdown(env)) {
+		console.warn(
+			`[company-brain] scheduled task ${schedule.id} dropped: DMs are off (PILOT_LOCKDOWN)`,
+		)
+		return
+	}
 	const target = dm
 		? await openSlackConversation(botToken, payload.creatorSlackUserId ?? "")
 		: payload.channel

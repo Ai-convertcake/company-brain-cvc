@@ -14,6 +14,7 @@ import {
 	PUBLIC_CHANNEL_ROLLOUT_DAYS,
 } from "../constants"
 import { maybeSyncBrainProfileConfig } from "../memory/profile-sync"
+import { isPilotLockdown } from "../tools/mcp/shared-access"
 import { brainAgent, type CompanyBrainAgent } from "../turn/agent"
 import { normalizeSlackMessageContent } from "./attachments"
 import { invalidateChannelDirectory } from "./channel-directory"
@@ -780,6 +781,7 @@ export async function runPublicChannelBeachhead(
 	agent: CompanyBrainAgent,
 	payload: PublicChannelBeachhead,
 ): Promise<void> {
+	if (isPilotLockdown(brainAgent(agent).env)) return
 	ensurePublicChannelRolloutTables(agent)
 	const bail = (reason: string) =>
 		console.log(
@@ -990,6 +992,7 @@ export async function startPublicChannelRollout(
 	agent: CompanyBrainAgent,
 	payload: PublicChannelRolloutStart,
 ): Promise<void> {
+	if (isPilotLockdown(brainAgent(agent).env)) return
 	ensurePublicChannelRolloutTables(agent)
 	const env = brainAgent(agent).env
 	const ws = await getWorkspaceByTeamId(env, payload.teamId)

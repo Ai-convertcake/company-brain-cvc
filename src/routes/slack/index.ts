@@ -32,6 +32,7 @@ import {
 	isChimeInEvent,
 	isContextRetentionEvent,
 	isDebugReactionEvent,
+	isDirectConversationEvent,
 	isDirectMessage,
 	isMuteReactionEvent,
 	isNameWakeCandidate,
@@ -41,6 +42,7 @@ import {
 	type SlackTurnMessage,
 	SlackUserChangeEnvelopeSchema,
 } from "@/lib/brain/slack/events"
+import { isPilotLockdown } from "@/lib/brain/tools/mcp/shared-access"
 import {
 	mcpConnectButtonsBlocks,
 	recordSlackMcpConnectResponseUrl,
@@ -735,6 +737,10 @@ export const slackRoutes = new Hono<AppContext>()
 			return c.json({ ok: true })
 		}
 
+		// Pilot lockdown: DMs get no reply at all, not even a sign-in prompt.
+		if (isPilotLockdown(c.env) && isDirectConversationEvent(event)) {
+			return c.json({ ok: true })
+		}
 		const ws = await loadWorkspace(c.env, team_id)
 		const addressedElsewhere = Boolean(
 			ws &&
