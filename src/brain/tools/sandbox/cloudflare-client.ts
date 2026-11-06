@@ -18,7 +18,9 @@ import {
 
 // Sandboxes sleep after this long idle. A sleeping container loses its
 // filesystem, which the marker file below detects.
-const SLEEP_AFTER = "30m"
+// Each Slack thread gets its own container, and containers count against
+// max_instances while awake, so idle ones sleep quickly.
+const SLEEP_AFTER = "10m"
 
 // Written when a sandbox is set up. A container that woke from sleep starts
 // from the image again and won't have it, so the session gets recreated.

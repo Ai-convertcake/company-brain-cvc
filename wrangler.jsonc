@@ -99,7 +99,7 @@
 			"class_name": "Sandbox",
 			"image": "./sandbox/Dockerfile",
 			"instance_type": "basic",
-			"max_instances": 10
+			"max_instances": 20
 		}
 	],
 	"unsafe": {
