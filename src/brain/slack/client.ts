@@ -155,9 +155,11 @@ export async function uploadSlackFile(
 		// bytes were stored with no file type and never shared to the channel.
 		const form = new FormData()
 		form.append("file", new Blob([bytes]), args.filename)
+		// Slack's own Node SDK sends the bot token on this POST too.
 		const response = await fetch(ticket.upload_url, {
 			method: "POST",
 			signal: requestSignal(),
+			headers: { authorization: `Bearer ${botToken}` },
 			body: form,
 		})
 		// ponytail: diagnostic, remove with logSlackFileShares.
