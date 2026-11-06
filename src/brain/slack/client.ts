@@ -140,11 +140,23 @@ export async function uploadSlackFile(
 	}
 
 	try {
+		// Send the bytes with a known length: a streamed body goes out chunked
+		// without Content-Length. Sandbox files that Slack accepted this way were
+		// never shared, likely for this reason. Artifacts are capped at 5 MB.
+		const bytes =
+			args.content instanceof ReadableStream
+				? await new Response(args.content).arrayBuffer()
+				: args.content
+		if (bytes.byteLength !== length)
+			return uploadFailure(
+				"upload_bytes",
+				`size_mismatch expected=${length} got=${bytes.byteLength}`,
+			)
 		const response = await fetch(ticket.upload_url, {
 			method: "POST",
 			signal: requestSignal(),
 			headers: { "content-type": "application/octet-stream" },
-			body: args.content,
+			body: bytes,
 		})
 		if (!response.ok) {
 			await cancelSlackFileUploadBody(args.content)
@@ -186,7 +198,12 @@ export async function uploadSlackFile(
 		}
 		const complete = (await response
 			.json()
-			.catch(() => ({}))) as SlackOkResponse
+			.catch(() => ({}))) as SlackOkResponse & {
+			files?: Array<{ id?: string; size?: number; shares?: unknown }>
+		}
+		console.log(
+			`[slack] completeUploadExternal ok=${complete.ok} error=${complete.error ?? "-"} channel=${args.channel} thread=${args.threadTs ?? "-"} files=${JSON.stringify(complete.files?.map((f) => ({ id: f.id, size: f.size, shared: Boolean(f.shares && Object.keys(f.shares as object).length) })) ?? [])}`,
+		)
 		if (complete.ok !== true) {
 			return uploadFailure(
 				"complete_upload",
