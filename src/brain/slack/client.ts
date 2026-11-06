@@ -151,11 +151,14 @@ export async function uploadSlackFile(
 				"upload_bytes",
 				`size_mismatch expected=${length} got=${bytes.byteLength}`,
 			)
+		// Multipart form, as in Slack's own example (curl -F). Raw octet-stream
+		// bytes were stored with no file type and never shared to the channel.
+		const form = new FormData()
+		form.append("file", new Blob([bytes]), args.filename)
 		const response = await fetch(ticket.upload_url, {
 			method: "POST",
 			signal: requestSignal(),
-			headers: { "content-type": "application/octet-stream" },
-			body: bytes,
+			body: form,
 		})
 		if (!response.ok) {
 			await cancelSlackFileUploadBody(args.content)
