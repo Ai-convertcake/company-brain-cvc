@@ -378,9 +378,21 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 						if (!session) return missingSession()
 						// Same as sandbox_run: a write can replace an uploaded artifact.
 						artifactUploads.clear()
+						// Relative paths land where sandbox_run runs (the workspace), not
+						// at the filesystem root, so "python3 file.py" finds the file.
+						const cleaned = normalizePath(path, session.defaultCwd).replace(
+							/^\.\//,
+							"",
+						)
+						const resolved =
+							cleaned.startsWith("/") ||
+							cleaned === session.defaultCwd ||
+							cleaned.startsWith(`${session.defaultCwd}/`)
+								? cleaned
+								: `${session.defaultCwd}/${cleaned}`
 						const out = await writeTextFile({
 							sandboxId: session.sandboxId,
-							path: normalizePath(path, session.defaultCwd),
+							path: resolved,
 							content,
 						})
 						touchSandboxSession(agent, session)
