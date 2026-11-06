@@ -160,6 +160,14 @@ export async function uploadSlackFile(
 			signal: requestSignal(),
 			body: form,
 		})
+		// ponytail: diagnostic, remove with logSlackFileShares.
+		const uploadReply = await response
+			.clone()
+			.text()
+			.catch(() => "")
+		console.log(
+			`[slack] upload bytes file=${ticket.file_id} status=${response.status} host=${new URL(ticket.upload_url).host} sent=${bytes.byteLength} reply="${uploadReply.slice(0, 200).replace(/\s+/g, " ")}"`,
+		)
 		if (!response.ok) {
 			await cancelSlackFileUploadBody(args.content)
 			return uploadFailure("upload_bytes", `http_${response.status}`)
