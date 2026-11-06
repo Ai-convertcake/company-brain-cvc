@@ -332,6 +332,7 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 						fileId: upload.fileId,
 						sizeBytes: out.sizeBytes,
 						path: out.path,
+						note: upload.note,
 					}
 				})()
 				artifactUploads.set(artifactPath, uploadPromise)
@@ -345,6 +346,8 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 					throw error
 				}
 				return {
+					// ponytail: uploadNote is diagnostic; drop it with logSlackFileShares.
+					uploadNote: uploaded.note,
 					path: uploaded.path,
 					sizeBytes: uploaded.sizeBytes,
 					uploaded: true,

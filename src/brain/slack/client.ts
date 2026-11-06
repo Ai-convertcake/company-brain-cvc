@@ -16,7 +16,7 @@ type SlackOkResponse = { ok: boolean; error?: string }
 type SlackFileUploadBody = ArrayBuffer | ReadableStream<Uint8Array>
 
 export type SlackFileUploadResult =
-	| { ok: true; fileId: string }
+	| { ok: true; fileId: string; note?: string }
 	| {
 			ok: false
 			stage: "request_upload_url" | "upload_bytes" | "complete_upload"
@@ -72,6 +72,7 @@ export async function uploadSlackFile(
 	},
 ): Promise<SlackFileUploadResult> {
 	const length = args.sizeBytes
+	let uploadNote = ""
 	const requestSignal = () => {
 		const timeout = AbortSignal.timeout(SLACK_FILE_UPLOAD_TIMEOUT_MS)
 		return args.signal ? AbortSignal.any([args.signal, timeout]) : timeout
@@ -155,21 +156,41 @@ export async function uploadSlackFile(
 		// bytes were stored with no file type and never shared to the channel.
 		const form = new FormData()
 		form.append("file", new Blob([bytes]), args.filename)
-		// Slack's own Node SDK sends the bot token on this POST too.
-		const response = await fetch(ticket.upload_url, {
+		// Slack's own Node SDK sends the bot token on this POST too. Redirects are
+		// followed by hand: fetch's default turns a 301/302 POST into a GET that
+		// drops the file, which would still end in a 200.
+		let url = ticket.upload_url
+		const hops: string[] = []
+		let response = await fetch(url, {
 			method: "POST",
 			signal: requestSignal(),
 			headers: { authorization: `Bearer ${botToken}` },
 			body: form,
+			redirect: "manual",
 		})
+		while (
+			response.status >= 300 &&
+			response.status < 400 &&
+			response.headers.get("location") &&
+			hops.length < 3
+		) {
+			url = new URL(response.headers.get("location") ?? "", url).toString()
+			hops.push(`${response.status}->${new URL(url).host}`)
+			response = await fetch(url, {
+				method: "POST",
+				signal: requestSignal(),
+				headers: { authorization: `Bearer ${botToken}` },
+				body: form,
+				redirect: "manual",
+			})
+		}
 		// ponytail: diagnostic, remove with logSlackFileShares.
 		const uploadReply = await response
 			.clone()
 			.text()
 			.catch(() => "")
-		console.log(
-			`[slack] upload bytes file=${ticket.file_id} status=${response.status} host=${new URL(ticket.upload_url).host} sent=${bytes.byteLength} reply="${uploadReply.slice(0, 200).replace(/\s+/g, " ")}"`,
-		)
+		uploadNote = `upload=${response.status} hops=${hops.join(",") || "none"} reply=${uploadReply.slice(0, 60).replace(/\s+/g, " ")}`
+		console.log(`[slack] upload bytes file=${ticket.file_id} ${uploadNote}`)
 		if (!response.ok) {
 			await cancelSlackFileUploadBody(args.content)
 			return uploadFailure("upload_bytes", `http_${response.status}`)
@@ -223,7 +244,7 @@ export async function uploadSlackFile(
 			)
 		}
 		await logSlackFileShares(botToken, ticket.file_id)
-		return { ok: true, fileId: ticket.file_id }
+		return { ok: true, fileId: ticket.file_id, note: uploadNote }
 	} catch (error) {
 		return uploadFailure("complete_upload", error)
 	}
