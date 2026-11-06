@@ -140,9 +140,8 @@ export async function uploadSlackFile(
 	}
 
 	try {
-		// Send the bytes with a known length: a streamed body goes out chunked
-		// without Content-Length. Sandbox files that Slack accepted this way were
-		// never shared, likely for this reason. Artifacts are capped at 5 MB.
+		// Send the bytes with a known length rather than a chunked stream.
+		// Artifacts are capped at 5 MB.
 		const bytes =
 			args.content instanceof ReadableStream
 				? await new Response(args.content).arrayBuffer()
@@ -210,9 +209,49 @@ export async function uploadSlackFile(
 				complete.error ?? "invalid_response",
 			)
 		}
+		await logSlackFileShares(botToken, ticket.file_id)
 		return { ok: true, fileId: ticket.file_id }
 	} catch (error) {
 		return uploadFailure("complete_upload", error)
+	}
+}
+
+// ponytail: diagnostic for sandbox files Slack accepted but never showed in the
+// thread (2026-11-06). Remove once the cause is known; it adds up to ~12 s.
+async function logSlackFileShares(botToken: string, fileId: string) {
+	for (const waitMs of [2000, 3000, 5000]) {
+		await new Promise((resolve) => setTimeout(resolve, waitMs))
+		try {
+			const res = await fetch(
+				`${SLACK_API}/files.info?file=${encodeURIComponent(fileId)}`,
+				{ headers: { authorization: `Bearer ${botToken}` } },
+			)
+			const info = (await res.json().catch(() => ({}))) as {
+				ok?: boolean
+				error?: string
+				file?: {
+					size?: number
+					mimetype?: string
+					mode?: string
+					is_public?: boolean
+					channels?: string[]
+					groups?: string[]
+					shares?: { public?: object; private?: object }
+				}
+			}
+			const f = info.file
+			const shares = {
+				public: Object.keys(f?.shares?.public ?? {}),
+				private: Object.keys(f?.shares?.private ?? {}),
+			}
+			console.log(
+				`[slack] files.info file=${fileId} after=${waitMs}ms ok=${info.ok} error=${info.error ?? "-"} size=${f?.size} mimetype=${f?.mimetype} mode=${f?.mode} public=${f?.is_public} channels=${JSON.stringify(f?.channels ?? [])} groups=${JSON.stringify(f?.groups ?? [])} shares=${JSON.stringify(shares)}`,
+			)
+			if (!info.ok || shares.public.length || shares.private.length) return
+		} catch (error) {
+			console.warn(`[slack] files.info file=${fileId} failed:`, error)
+			return
+		}
 	}
 }
 
