@@ -357,11 +357,47 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 		},
 	})
 
+	const writeTextFile = client.writeTextFile?.bind(client)
+	const sandbox_write_file = writeTextFile
+		? deps.tool({
+				description:
+					"Write a text file, such as a Python script, into the active sandbox. sandbox_run commands are capped at 2,000 characters, so write anything longer with this tool, then run it with sandbox_run.",
+				inputSchema: deps.z.object({
+					path: deps.z
+						.string()
+						.min(1)
+						.describe("File path, relative to the workspace."),
+					content: deps.z
+						.string()
+						.max(sandboxLimits.maxTextFileChars)
+						.describe("Full file contents."),
+				}),
+				execute: async ({ path, content }) => {
+					try {
+						const session = loadSandboxSession(agent, sessionKey)
+						if (!session) return missingSession()
+						// Same as sandbox_run: a write can replace an uploaded artifact.
+						artifactUploads.clear()
+						const out = await writeTextFile({
+							sandboxId: session.sandboxId,
+							path: normalizePath(path, session.defaultCwd),
+							content,
+						})
+						touchSandboxSession(agent, session)
+						return out
+					} catch (error) {
+						return toolError(error)
+					}
+				},
+			})
+		: undefined
+
 	return {
 		sandbox_start,
 		sandbox_run,
 		sandbox_list_files,
 		sandbox_read_file,
 		sandbox_get_artifact,
+		...(sandbox_write_file ? { sandbox_write_file } : {}),
 	}
 }

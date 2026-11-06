@@ -40,6 +40,12 @@ export type SandboxClient = {
 		sandboxId: string
 		path: string
 	}): Promise<{ path: string; content: string; truncated: boolean }>
+	/** Only some providers support it; the write tool is offered when present. */
+	writeTextFile?(args: {
+		sandboxId: string
+		path: string
+		content: string
+	}): Promise<{ path: string; bytes: number }>
 	getArtifact(args: { sandboxId: string; path: string }): Promise<{
 		path: string
 		sizeBytes: number
