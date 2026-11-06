@@ -80,7 +80,7 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 
 	const sandbox_start = deps.tool({
 		description:
-			"Create or reuse an isolated workspace for code/repo/file/PDF work. Use this before sandbox_run, sandbox_read_file, sandbox_list_files, or sandbox_get_artifact. Only public https repo URLs are supported in V1.",
+			"Create or reuse an isolated workspace for code/repo/file/PDF work. Use this before sandbox_run, sandbox_read_file, sandbox_list_files, or sandbox_get_artifact. The sandbox has no internet, so repo URLs and package installs fail. For documents use the installed python-docx and openpyxl, make PDFs with `HOME=/tmp soffice --headless --convert-to pdf file.docx`, and set Tahoma as the font for Thai text.",
 		inputSchema: deps.z.object({
 			goal: deps.z
 				.string()

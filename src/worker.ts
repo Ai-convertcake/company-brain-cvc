@@ -9,7 +9,12 @@ import { setupRoutes } from "./setup/routes"
 import { hydrateSecrets, rememberPublicUrl } from "./setup/secrets"
 import type { AppContext } from "./types"
 
-export { Sandbox } from "@cloudflare/sandbox"
+import { Sandbox as BaseSandbox } from "@cloudflare/sandbox"
+
+// Model-written code sees client data, so it must not be able to send it anywhere.
+export class Sandbox extends BaseSandbox {
+	override enableInternet = false
+}
 export { CompanyBrainAgent } from "./brain/turn/agent"
 
 /**

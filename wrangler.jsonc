@@ -29,7 +29,7 @@
 	"vars": {
 		// "on" once the Workers Paid block below is enabled: sandbox tools then
 		// run on a Cloudflare container.
-		"CONTAINER_SANDBOX": "off",
+		"CONTAINER_SANDBOX": "on",
 		// The sandbox SDK's RPC transport; artifact downloads stream over it.
 		"SANDBOX_TRANSPORT": "rpc",
 		// Private Slack channels that may use org-shared MCP tools, comma-separated.
@@ -94,14 +94,14 @@
 	// sandbox (shell, git, Python). Without it, sandbox tools use Daytona when
 	// DAYTONA_API_KEY is set.
 	//
-	// "containers": [
-	// 	{
-	// 		"class_name": "Sandbox",
-	// 		"image": "./sandbox/Dockerfile",
-	// 		"instance_type": "basic",
-	// 		"max_instances": 10
-	// 	}
-	// ],
+	"containers": [
+		{
+			"class_name": "Sandbox",
+			"image": "./sandbox/Dockerfile",
+			"instance_type": "basic",
+			"max_instances": 10
+		}
+	],
 	"unsafe": {
 		"bindings": [
 			{

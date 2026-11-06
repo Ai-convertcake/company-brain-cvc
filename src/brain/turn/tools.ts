@@ -430,7 +430,8 @@ export async function assembleTurnTools(
 	let mcpSetupFailed = false
 	if (webSearchTool) tools.search_web = webSearchTool
 	if (webExtractTool) tools.web_extract = webExtractTool
-	const sandboxTools = sandboxToolsConfigured(env)
+	// Runs model-written code, so it follows the approved-channel rule.
+	const sandboxTools = sandboxToolsConfigured(env) && actor.allowSharedConnections
 		? createSandboxTools({
 				env,
 				agent,

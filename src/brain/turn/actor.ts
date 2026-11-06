@@ -9,7 +9,7 @@ export type TurnActor = {
 	personalConnectionsOnly?: boolean
 	/** Automations read strictly org-shared connections, ignoring userId. */
 	orgSharedOnly?: boolean
-	/** Org-shared connections stay hidden unless this is set. */
+	/** Approved channel: org-shared connections and the sandbox stay hidden otherwise. */
 	allowSharedConnections?: boolean
 	/** Block ALL MCP writes (org-shared and personal). Automations are read-only. */
 	readOnly?: boolean
