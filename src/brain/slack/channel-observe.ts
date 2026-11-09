@@ -1277,9 +1277,13 @@ export async function ensureNexusLearningSchedule(
 	if (!existing.some((s) => s.type === "cron")) {
 		await agent.schedule("0 19 * * *", "runNexusLearning")
 	}
-	// A pass soon after each start, so channels added in a deploy start the same day.
-	// Re-arming a learned channel only reads its new messages.
-	if (!existing.some((s) => s.type !== "cron")) {
+	// When the channel list changes, run a pass soon so new channels start the same day.
+	agent.sql`CREATE TABLE IF NOT EXISTS brain_nexus_learning_state (channels TEXT NOT NULL)`
+	const channels = nexusLearningChannels(env).join(",")
+	const last = agent.sql<{ channels: string }>`SELECT channels FROM brain_nexus_learning_state`[0]
+	if (last?.channels !== channels) {
+		agent.sql`DELETE FROM brain_nexus_learning_state`
+		agent.sql`INSERT INTO brain_nexus_learning_state (channels) VALUES (${channels})`
 		await agent.schedule(60, "runNexusLearning")
 	}
 }
