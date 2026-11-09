@@ -1274,8 +1274,12 @@ export async function ensureNexusLearningSchedule(
 		await Promise.all(existing.map((s) => agent.cancelSchedule(s.id)))
 		return
 	}
-	if (existing.some((s) => s.type === "cron")) return
-	await agent.schedule("0 19 * * *", "runNexusLearning")
-	// First pass right after setup, so a deploy can be checked the same day.
-	await agent.schedule(60, "runNexusLearning")
+	if (!existing.some((s) => s.type === "cron")) {
+		await agent.schedule("0 19 * * *", "runNexusLearning")
+	}
+	// A pass soon after each start, so channels added in a deploy start the same day.
+	// Re-arming a learned channel only reads its new messages.
+	if (!existing.some((s) => s.type !== "cron")) {
+		await agent.schedule(60, "runNexusLearning")
+	}
 }
