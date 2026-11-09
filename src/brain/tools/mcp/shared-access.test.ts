@@ -3,6 +3,7 @@ import {
 	connectionsActorMayUse,
 	isApprovedLearningChannel,
 	isApprovedSearchChannel,
+	isNexusLearningChannel,
 	isPilotLockdown,
 	observedMemoryScope,
 	observeStartTs,
@@ -109,5 +110,12 @@ describe("pilot lockdown", () => {
 		expect(isApprovedSearchChannel(env, "C3")).toBe(true)
 		expect(isApprovedSearchChannel(env, "C9")).toBe(false)
 		expect(isApprovedSearchChannel({}, "C1")).toBe(false)
+	})
+
+	it("learns through Nexus only for listed channels with a token", () => {
+		const env = { NEXUS_LEARNING_CHANNELS: "C1, C2", NEXUS_BOT_TOKEN: "x" }
+		expect(isNexusLearningChannel(env, "C2")).toBe(true)
+		expect(isNexusLearningChannel(env, "C3")).toBe(false)
+		expect(isNexusLearningChannel({ NEXUS_LEARNING_CHANNELS: "C1" }, "C1")).toBe(false)
 	})
 })

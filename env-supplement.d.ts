@@ -62,6 +62,8 @@ interface Env {
 	LEARNING_CHANNELS?: string
 	/** "on" blocks DMs, automatic team invites and automatic channel joins. */
 	PILOT_LOCKDOWN?: string
+	NEXUS_LEARNING_CHANNELS?: string
+	NEXUS_BOT_TOKEN?: string
 	/** Comma-separated MCP slugs known to be read-only, which skip the AI effect check. */
 	READ_ONLY_MCP_SERVERS?: string
 	/** The built app UI (web/), served for every path the worker doesn't own. */

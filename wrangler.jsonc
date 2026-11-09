@@ -38,6 +38,8 @@
 		"LEARNING_CHANNELS": "C08M0F5R50W,C056FDJMHM4",
 		// "on": no DMs, no automatic team invites, no automatic channel joins.
 		"PILOT_LOCKDOWN": "on",
+		// Private channels learned through the Nexus AI bot into team-wide memory. Token: secret NEXUS_BOT_TOKEN.
+		"NEXUS_LEARNING_CHANNELS": "C0ACY9QB73N",
 		// MCP servers we run and know are read-only.
 		"READ_ONLY_MCP_SERVERS": "companybrainmcp"
 	},

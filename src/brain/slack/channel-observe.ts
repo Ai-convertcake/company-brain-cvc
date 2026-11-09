@@ -9,6 +9,8 @@ import { writeMemories } from "../memory"
 import { BRAIN_CAPTURE_POLICY } from "../memory/profile-config"
 import {
 	isApprovedLearningChannel,
+	isNexusLearningChannel,
+	nexusLearningChannels,
 	observedMemoryScope,
 	observeStartTs,
 } from "../tools/mcp/shared-access"
@@ -1101,11 +1103,17 @@ export async function runChannelObserve(
 			return
 		}
 		const installedByUserId = ws.installedByUserId
-		const botToken = await decryptToken(ws.botTokenEnc, env.ENCRYPTION_SECRET)
+		// Nexus channels are read with the Nexus AI bot's token, which is in them.
+		const viaNexus = isNexusLearningChannel(env, payload.channel)
+		const botToken =
+			viaNexus && env.NEXUS_BOT_TOKEN
+				? env.NEXUS_BOT_TOKEN
+				: await decryptToken(ws.botTokenEnc, env.ENCRYPTION_SECRET)
 		const info = await getSlackConversationInfo(botToken, payload.channel)
 		if (!isOwned(agent, key, schedule.id)) return
 		if (!info) throw new Error("channel_info_unavailable")
-		const isPrivateChannel = info.isPrivate !== false
+		// An admin approved Nexus channels for team-wide memory.
+		const isPrivateChannel = !viaNexus && info.isPrivate !== false
 		if (isPrivateChannel && !isApprovedLearningChannel(env, payload.channel)) {
 			clearTerminalChannelObserve(agent, key, schedule.id)
 			return
@@ -1197,4 +1205,45 @@ export async function runChannelObserve(
 			},
 		)
 	}
+}
+
+/** Daily: queue a learning pass for every Nexus channel. */
+export async function runNexusLearning(agent: CompanyBrainAgent): Promise<void> {
+	const env = brainAgent(agent).env
+	const channels = nexusLearningChannels(env)
+	if (!env.NEXUS_BOT_TOKEN || !channels.length) return
+	const res = await fetch("https://slack.com/api/auth.test", {
+		method: "POST",
+		headers: { authorization: `Bearer ${env.NEXUS_BOT_TOKEN}` },
+	})
+	const auth = (await res.json()) as { ok?: boolean; team_id?: string; error?: string }
+	if (!auth.ok || !auth.team_id) {
+		console.error(`[company-brain] nexus-learning auth failed: ${auth.error ?? res.status}`)
+		return
+	}
+	const teamId = auth.team_id
+	const ws = await getWorkspaceByTeamId(env, teamId)
+	if (ws?.orgId !== agent.name) return
+	for (const channel of channels) {
+		await armChannelObserve(agent, { teamId, channel })
+	}
+	console.log(`[company-brain] nexus-learning armed channels=${channels.length}`)
+}
+
+/** Keep exactly one daily Nexus learning schedule (02:00 Bangkok). */
+export async function ensureNexusLearningSchedule(
+	agent: CompanyBrainAgent,
+): Promise<void> {
+	const env = brainAgent(agent).env
+	const existing = agent
+		.getSchedules()
+		.filter((s) => s.callback === "runNexusLearning")
+	if (!env.NEXUS_BOT_TOKEN || !nexusLearningChannels(env).length) {
+		await Promise.all(existing.map((s) => agent.cancelSchedule(s.id)))
+		return
+	}
+	if (existing.some((s) => s.type === "cron")) return
+	await agent.schedule("0 19 * * *", "runNexusLearning")
+	// First pass right after setup, so a deploy can be checked the same day.
+	await agent.schedule(60, "runNexusLearning")
 }

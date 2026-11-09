@@ -563,6 +563,10 @@ export class CompanyBrainAgent extends Agent<Env, CompanyBrainState> {
 		return (await this.loadImpl()).runChannelObserve(this, payload, schedule)
 	}
 
+	async runNexusLearning(): Promise<void> {
+		return (await this.loadImpl()).runNexusLearning(this)
+	}
+
 	// A cron-shaped invocation can only be a retired daily schedule, and boot-time
 	// cleanup can lose the race to a due alarm, so refuse it here.
 	async runAutoResearch(

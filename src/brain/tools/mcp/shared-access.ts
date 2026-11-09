@@ -18,6 +18,26 @@ export function isApprovedLearningChannel(
 		.some((id) => id.trim() !== "" && id.trim() === channelId)
 }
 
+/**
+ * Private channels the bot learns from through the Nexus AI bot's token, without
+ * being a member (NEXUS_LEARNING_CHANNELS). Their memories are team-wide.
+ */
+export function isNexusLearningChannel(
+	env: Pick<Env, "NEXUS_LEARNING_CHANNELS" | "NEXUS_BOT_TOKEN">,
+	channelId: string,
+): boolean {
+	return Boolean(env.NEXUS_BOT_TOKEN) && nexusLearningChannels(env).includes(channelId)
+}
+
+export function nexusLearningChannels(
+	env: Pick<Env, "NEXUS_LEARNING_CHANNELS">,
+): string[] {
+	return (env.NEXUS_LEARNING_CHANNELS ?? "")
+		.split(",")
+		.map((id) => id.trim())
+		.filter(Boolean)
+}
+
 const FIRST_READ_DAYS = 30
 
 // Never read further back than 30 days, even for a channel with no saved position.

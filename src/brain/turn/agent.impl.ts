@@ -36,6 +36,7 @@ import {
 } from "../slack/channel-membership"
 import {
 	ensureChannelObserveTables,
+	ensureNexusLearningSchedule,
 	reconcileChannelObserveSchedules,
 } from "../slack/channel-observe"
 import { ensureChimeBudgetTables } from "../slack/chime-budget"
@@ -73,7 +74,7 @@ export {
 	setWorkspacePrompt,
 } from "../memory/workspace-prompt"
 export { computeInteractionContext } from "../prompt/build"
-export { runChannelObserve } from "../slack/channel-observe"
+export { runChannelObserve, runNexusLearning } from "../slack/channel-observe"
 export {
 	createAutomation,
 	deleteAutomation,
@@ -185,6 +186,7 @@ export async function onStart(agent: CompanyBrainAgent): Promise<void> {
 	`
 	const repairs = await Promise.allSettled([
 		reconcileChannelObserveSchedules(agent),
+		ensureNexusLearningSchedule(agent),
 		reconcilePostTurnReflectSchedules(agent),
 		reconcileTeamInviteSchedule(agent),
 		cancelAutoResearchSchedules(agent),
