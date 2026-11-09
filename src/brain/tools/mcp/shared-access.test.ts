@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest"
 import {
+	channelContextLine,
 	connectionsActorMayUse,
 	isApprovedLearningChannel,
 	isApprovedSearchChannel,
 	isNexusLearningChannel,
 	isPilotLockdown,
 	observedMemoryScope,
+	observedMessageText,
 	observeStartTs,
 	scheduledRunMayUseShared,
 	isApprovedSharedMcpChannel,
@@ -117,5 +119,25 @@ describe("pilot lockdown", () => {
 		expect(isNexusLearningChannel(env, "C2")).toBe(true)
 		expect(isNexusLearningChannel(env, "C3")).toBe(false)
 		expect(isNexusLearningChannel({ NEXUS_LEARNING_CHANNELS: "C1" }, "C1")).toBe(false)
+	})
+
+	it("names the channel so memories say which client they are about", () => {
+		expect(channelContextLine({ name: "sukishi-cvc", topic: " Sukishi ads ", purpose: "" })).toBe(
+			"SLACK_CHANNEL: #sukishi-cvc (Sukishi ads)",
+		)
+		expect(channelContextLine({ name: "general" })).toBe("SLACK_CHANNEL: #general")
+		expect(channelContextLine({ topic: "x" })).toBe("")
+	})
+
+	it("keeps file names and link previews in the learned text", () => {
+		expect(
+			observedMessageText({
+				text: "brief here",
+				files: [{ name: "Nov_pricing.pdf", mimetype: "application/pdf" }, {}],
+				attachments: [{ title: "Tracker", title_link: "https://docs.google.com/x" }, { title: "no link" }],
+			}),
+		).toBe("brief here\n[file: Nov_pricing.pdf (application/pdf)]\n[link: Tracker https://docs.google.com/x]")
+		expect(observedMessageText({ files: [{ name: "a.png" }] })).toBe("[file: a.png]")
+		expect(observedMessageText({})).toBe("")
 	})
 })

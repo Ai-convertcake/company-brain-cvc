@@ -46,6 +46,39 @@ export function observeStartTs(cursor: string, nowMs: number): string {
 	return Number(cursor) > earliest ? cursor : String(earliest)
 }
 
+// Names the channel on every memory, so a client channel's memories say which client.
+export function channelContextLine(info: {
+	name?: string
+	topic?: string
+	purpose?: string
+}): string {
+	if (!info.name) return ""
+	const about = [info.topic, info.purpose]
+		.map((s) => s?.trim())
+		.filter(Boolean)
+		.join(" — ")
+		.slice(0, 200)
+	return `SLACK_CHANNEL: #${info.name}${about ? ` (${about})` : ""}`
+}
+
+// The learner only stores text, so fold file names and link previews into it.
+export function observedMessageText(message: {
+	text?: string
+	files?: Array<{ name?: string; mimetype?: string }>
+	attachments?: Array<{ title?: string; title_link?: string }>
+}): string {
+	const parts = [message.text ?? ""]
+	for (const file of message.files ?? []) {
+		if (file.name) {
+			parts.push(`[file: ${file.name}${file.mimetype ? ` (${file.mimetype})` : ""}]`)
+		}
+	}
+	for (const link of message.attachments ?? []) {
+		if (link.title_link) parts.push(`[link: ${link.title ?? ""} ${link.title_link}]`)
+	}
+	return parts.filter(Boolean).join("\n")
+}
+
 // No scope means company-wide memory, which must never hold a private channel.
 export function observedMemoryScope(channelId: string, isPrivate: boolean) {
 	return isPrivate

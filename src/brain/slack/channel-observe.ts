@@ -12,6 +12,8 @@ import {
 	isNexusLearningChannel,
 	nexusLearningChannels,
 	observedMemoryScope,
+	channelContextLine,
+	observedMessageText,
 	observeStartTs,
 } from "../tools/mcp/shared-access"
 import { MAX_BRAIN_OBSERVE_DOCS, personBrainTagKey } from "../memory/tags"
@@ -27,6 +29,7 @@ import {
 } from "../turn/retry-state"
 import {
 	getSlackChannelHistoryResult,
+	getSlackThreadHistory,
 	getSlackConversationInfo,
 	type SlackThreadMessage,
 	type SlackUserInfo,
@@ -67,7 +70,11 @@ Lines labeled ${BOT_AUTHOR_LABEL} (bots, apps, and the brain's own prior replies
 
 Group the durable content into the fewest TAG-COHERENT clusters that remain independently retrievable. Each cluster covers ONE coherent subject sharing one tag set (a topic-tree path and/or its primary people). Keep related decisions, rationale, owners, and implications together even when several people are involved. Split only genuinely independent subjects, not supporting facts that merely add another person or possible tag. Keep the original wording and any dates — do NOT pre-atomize into single facts, and do NOT dump raw chatter. Prioritize durable CHANGES (ownership, responsibility, roles, decisions) and keep their dates in the text so the extractor can resolve recency. Retain explicit human commitments, blockers, and meaningful status changes with the capture policy's decay rules; exclude raw activity, live counts, and app-derived status snapshots. Skip pure chatter; if nothing durable, return an empty list.
 
-For each cluster: content = the curated relevant material (faithful, dates preserved); tags = the fewest coherent topic-tree paths ('/'-nested, reuse exact existing paths rather than creating near-duplicates) + person_<slack_user_id> only for primary people. Leave eventDate unset — dates stay in the content for the extractor to assign per fact.`
+For each cluster: content = the curated relevant material (faithful, dates preserved); tags = the fewest coherent topic-tree paths ('/'-nested, reuse exact existing paths rather than creating near-duplicates) + person_<slack_user_id> only for primary people. Leave eventDate unset — dates stay in the content for the extractor to assign per fact.
+
+The SLACK_CHANNEL line says where the messages come from. When the channel or the messages are about a client or brand, write that client or brand name into every cluster's content (for example "Sukishi: monthly budget stays the same"), so each memory still makes sense outside this channel. Never guess a client the messages and channel don't name.
+
+Keep the URLs and file names that a decision, brief or deliverable refers to, so people can find the source later.`
 
 type PendingMessage = SlackThreadMessage & { ts: string }
 type PersistedChannelBatch = {
@@ -802,13 +809,36 @@ async function spoolChannelPage(
 		.sort((a, b) => a.ts.localeCompare(b.ts))
 	// Spool bots too (a human reply is meaningless without them), but label them
 	// so the distiller uses them as context, never as a fact source.
+	const authorOf = (message: SlackThreadMessage) =>
+		isBotAuthoredMessage(message, botUserId) ? BOT_AUTHOR_LABEL : (message.user ?? "?")
+	const rows: Array<{ ts: string; author: string; text: string }> = []
 	for (const message of fresh) {
-		const author = isBotAuthoredMessage(message, botUserId)
-			? BOT_AUTHOR_LABEL
-			: (message.user ?? "?")
+		rows.push({ ts: message.ts, author: authorOf(message), text: observedMessageText(message) })
+		if (!message.reply_count) continue
+		// Channel history leaves out thread replies, so read each thread here.
+		// ponytail: a thread is read once, when its parent is first spooled, so later
+		// replies on an already-learned thread are missed. Re-read recent threads if that matters.
+		const thread = await getSlackThreadHistory(botToken, payload.channel, message.ts, {
+			oldest: observeStartTs(cursor, Date.now()),
+			maxMessages: 100,
+		})
+		if (!thread.ok) return "retry"
+		// Replies are batched by their own time, often apart from the parent, so carry its gist.
+		const parent = (message.text ?? "").replace(/\s+/g, " ").slice(0, 80)
+		for (const reply of thread.messages) {
+			if (!reply.ts || reply.ts === message.ts || reply.ts <= cursor) continue
+			rows.push({
+				ts: reply.ts,
+				author: authorOf(reply),
+				text: `[thread reply to: "${parent}"]\n${observedMessageText(reply)}`,
+			})
+		}
+	}
+	if (!isOwned(agent, key, scheduleId)) return "stale"
+	for (const row of rows) {
 		agent.sql`
 			INSERT OR IGNORE INTO brain_channel_observe_pending (channel_key, ts, user_id, text)
-			VALUES (${key}, ${message.ts}, ${author}, ${message.text ?? ""})
+			VALUES (${key}, ${row.ts}, ${row.author}, ${row.text})
 		`
 	}
 
@@ -937,6 +967,7 @@ async function processPendingBatch(
 	installedByUserId: string,
 	botToken: string,
 	isPrivateChannel: boolean,
+	channelLine: string,
 ): Promise<"complete" | "continue" | "retry" | "stale"> {
 	if (!isOwned(agent, key, scheduleId)) return "stale"
 	const cursor = getObserveCursor(agent, payload)
@@ -989,7 +1020,7 @@ async function processPendingBatch(
 		const result = await generateObject({
 			model: learningModel(),
 			system: DISTILL_SYSTEM,
-			prompt: `${rosterText}New messages in this channel:\n${promptBatch.prompt}\n\nDurable memories (or an empty list):`,
+			prompt: `${channelLine ? `${channelLine}\n\n` : ""}${rosterText}New messages in this channel:\n${promptBatch.prompt}\n\nDurable memories (or an empty list):`,
 			schema: DistillSchema,
 		})
 		if (!isOwned(agent, key, scheduleId)) return "stale"
@@ -999,7 +1030,7 @@ async function processPendingBatch(
 		const clusters: MemoryDocInput[] = result.object.memories.map(
 			(memory, index) => ({
 				...memory,
-				content: `DOCUMENT_DATE: ${docDate}\n${memory.content}`,
+				content: `DOCUMENT_DATE: ${docDate}\n${channelLine ? `${channelLine}\n` : ""}${memory.content}`,
 				internalCustomIdOverride: stableClusterCustomId(
 					ws.orgId,
 					key,
@@ -1173,6 +1204,7 @@ export async function runChannelObserve(
 			installedByUserId,
 			botToken,
 			isPrivateChannel,
+			channelContextLine(info),
 		)
 		if (processResult === "stale") return
 		if (processResult === "complete") {
