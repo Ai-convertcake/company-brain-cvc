@@ -34,4 +34,15 @@ describe("Slack cards", () => {
 		})
 		expect(out.ok).toBe(false)
 	})
+
+	it("turns a chart into a Slack data_visualization block", () => {
+		const out = specToSlackCard({
+			root: "card",
+			elements: {
+				card: { type: "Card", props: { title: "Spend" }, children: ["c"] },
+				c: { type: "Chart", props: { title: "By platform", chart: { type: "pie", segments: [{ label: "TikTok", value: 60 }, { label: "Google", value: 40 }] } }, children: [] },
+			},
+		})
+		expect(out.ok && out.card.blocks.some((b) => (b as { type: string }).type === "data_visualization")).toBe(true)
+	})
 })

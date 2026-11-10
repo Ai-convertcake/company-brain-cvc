@@ -2,7 +2,7 @@ import { cardToBlockKit, cardToFallbackText } from "@chat-adapter/slack/blocks"
 import { CardSpecError, standardComponentDefinitions as std, toCard } from "@json-render/chat"
 import type { Spec } from "@json-render/core"
 
-// ponytail: no Button (the bot has no click handler) and no Chart (not checked in Slack yet).
+// ponytail: no Button yet; the bot has no click handler.
 const components = {
 	Card: std.Card,
 	Section: std.Section,
@@ -10,6 +10,7 @@ const components = {
 	Fields: std.Fields,
 	Field: std.Field,
 	Table: std.Table,
+	Chart: std.Chart,
 	Divider: std.Divider,
 	Actions: std.Actions,
 	LinkButton: std.LinkButton,
@@ -23,12 +24,14 @@ Components:
 - Text { content, style?: "plain"|"bold"|"muted" } — markdown paragraph.
 - Fields {} with Field children { label, value } — KPI grid.
 - Table { headers: string[], rows: (string|number)[][], align?: ("left"|"center"|"right")[], caption? } — one table per card, at most 100 rows.
+- Chart { title, chart } — chart is { type: "pie", segments: [{ label, value }] } for shares of a whole, or { type: "bar"|"line"|"area", categories: string[], series: [{ name, values: number[] }] } for values over categories or time. At most 2 charts per card.
 - Divider {} — separator.
 - Actions {} with LinkButton children { label, url } — buttons that open links.
 Every element needs "children" (use [] when empty).`
 
 // Slack turns a second table into a code block and caps a table at 100 rows.
-const limits = { tables: 1, tableRows: 100 }
+// ponytail: chart limits are a guess (2 charts, 31 points); Slack's own caps aren't checked yet.
+const limits = { tables: 1, tableRows: 100, charts: 2, chartPoints: 31 }
 
 export type SlackCard = { blocks: unknown[]; text: string }
 

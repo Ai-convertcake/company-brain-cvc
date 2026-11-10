@@ -13,7 +13,7 @@ export function createPostCardTools(
 ): ToolSet {
 	return {
 		post_card: deps.tool({
-			description: `Post a formatted Slack card in this conversation: a title, KPI fields, one table, link buttons. Use it for structured results such as client status lists, KPI summaries or comparisons; use plain text for everything else. After it posts, reply with one short line and do not repeat what the card shows.\n\n${CARD_SPEC_GUIDE}`,
+			description: `Post a formatted Slack card in this conversation: a title, KPI fields, one table, up to 2 charts, link buttons. Use this tool instead of a markdown table whenever the answer is about performance, spend, KPIs vs target, pacing, a breakdown by campaign, platform, client or month, or a list of clients with their status. Put the headline numbers in Fields, the breakdown in a Table, a trend or share in a Chart, and the data source and date in a muted Text. Use plain text for everything else. After it posts, reply with one or two short lines (the takeaway and any action) and do not repeat what the card shows.\n\n${CARD_SPEC_GUIDE}`,
 			inputSchema: deps.z.object({
 				spec: deps.z
 					.object({
