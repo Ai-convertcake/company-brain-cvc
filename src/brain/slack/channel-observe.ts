@@ -77,7 +77,9 @@ For each cluster: content = the curated relevant material (faithful, dates prese
 
 The SLACK_CHANNEL line says where the messages come from. When the channel or the messages are about a client or brand, write that client or brand name into every cluster's content (for example "Sukishi: monthly budget stays the same"), so each memory still makes sense outside this channel. Never guess a client the messages and channel don't name.
 
-Keep the URLs and file names that a decision, brief or deliverable refers to, so people can find the source later.`
+Keep the URLs and file names that a decision, brief or deliverable refers to, so people can find the source later.
+
+Client channels are full of task traffic: tracker notifications, due dates, revision rounds, "sent", "revised", "done". Do not keep a single task's due date, revision count or current state; it is stale within days. Keep what stays true after the task closes: who does which step, the client's preferences and feedback, decisions and why, prices, budgets, rules, and problems that recur. When you keep a date, it is the day something was decided or changed.`
 
 type PendingMessage = SlackThreadMessage & { ts: string }
 type PersistedChannelBatch = {
