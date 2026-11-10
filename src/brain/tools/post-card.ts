@@ -13,7 +13,12 @@ export function createPostCardTools(
 ): ToolSet {
 	return {
 		post_card: deps.tool({
-			description: `Post a formatted Slack card in this conversation: a title, KPI fields, one table, up to 2 charts, link buttons. Use this tool instead of a markdown table whenever the answer is about performance, spend, KPIs vs target, pacing, a breakdown by campaign, platform, client or month, or a list of clients with their status. Put the headline numbers in Fields, the breakdown in a Table, a trend or share in a Chart, and the data source and date in a muted Text. Use plain text for everything else. After it posts, reply with one or two short lines (the takeaway and any action) and do not repeat what the card shows.\n\n${CARD_SPEC_GUIDE}`,
+			description: `Post a formatted Slack card in this conversation: a title, KPI fields, one table, up to 2 charts, link buttons. Use this tool instead of a markdown table whenever the answer is about performance, spend, KPIs vs target, pacing, a breakdown by campaign, platform, client or month, or a list of clients with their status. Layout that reads best:
+1. A Text first with the takeaway in one or two sentences, key numbers in *bold* (e.g. "Combo CPR อยู่ที่ *13.41 THB* ดีกว่าเป้า 11% แต่ใช้งบ พ.ย. ช้า คาดจบเดือนที่ *58%*").
+2. Fields with exactly 2 grouped Field items side by side, e.g. label "ผลลัพธ์" and label "งบ & Pacing". Each value is 2-4 lines, one metric per line: "CPR: *13.41 THB* ▲ ดีกว่าเป้า 11%". Use ▲/▼ or 🟢/🔴 for direction; keep each line short.
+3. A Table for the breakdown (top 5-8 rows, short column names with units).
+4. A Chart only when it adds something: prefer a bar chart comparing items (e.g. CPR by platform), a line chart for a trend; use pie only for 2-4 shares.
+5. A muted Text last with the source and "ข้อมูลถึง <date>". Add an Actions LinkButton (e.g. "ดูรายงาน") only when you have a real URL. Use plain text for everything else. After it posts, reply only with any "→ ชื่อคน: action" lines; the takeaway is already in the card, so do not repeat it or its numbers.\n\n${CARD_SPEC_GUIDE}`,
 			inputSchema: deps.z.object({
 				spec: deps.z
 					.object({
