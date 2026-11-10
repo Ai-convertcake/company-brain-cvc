@@ -31,7 +31,7 @@ export function createPostCardTools(
 				const posted = await postSlackMessageRaw(botToken, channel, out.card.text, threadTs, out.card.blocks)
 				if (posted.ok) {
 					console.log(`[company-brain][${traceId}] post_card posted channel=${channel} ts=${posted.ts}`)
-					return "Card posted. Reply with one short line only; do not repeat what the card shows."
+					return "Card posted. Reply only with any \"→ name: action\" lines; do not repeat the takeaway or numbers in the card."
 				}
 				// Slack may reject a block type (e.g. data_table); the card's text version still gets through.
 				console.warn(`[company-brain][${traceId}] post_card blocks rejected: ${posted.error}`)

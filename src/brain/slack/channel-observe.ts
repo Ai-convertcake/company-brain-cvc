@@ -1336,4 +1336,51 @@ export async function ensureNexusLearningSchedule(
 		agent.sql`INSERT INTO brain_nexus_learning_state (channels) VALUES (${channels})`
 		await agent.schedule(60, "runNexusLearning")
 	}
+	// One-off: log every channel Nexus AI is in, so Wave can pick what to learn next.
+	// ponytail: remove this and logNexusChannels once the list has been read.
+	agent.sql`CREATE TABLE IF NOT EXISTS brain_nexus_channel_list_logged (done INTEGER NOT NULL)`
+	if (!agent.sql<{ done: number }>`SELECT done FROM brain_nexus_channel_list_logged`[0]) {
+		if (await logNexusChannels(env.NEXUS_BOT_TOKEN)) {
+			agent.sql`INSERT INTO brain_nexus_channel_list_logged (done) VALUES (1)`
+		}
+	}
+}
+
+/** Prints the channels the Nexus AI app is a member of. Reads only; posts nothing. */
+async function logNexusChannels(token: string): Promise<boolean> {
+	const list = async (types: string) => {
+		const found: string[] = []
+		let cursor = ""
+		do {
+			const url = new URL("https://slack.com/api/users.conversations")
+			url.searchParams.set("types", types)
+			url.searchParams.set("exclude_archived", "true")
+			url.searchParams.set("limit", "200")
+			if (cursor) url.searchParams.set("cursor", cursor)
+			const res = await fetch(url, { headers: { authorization: `Bearer ${token}` } })
+			const data = (await res.json()) as {
+				ok?: boolean
+				error?: string
+				channels?: Array<{ id: string; name?: string; is_private?: boolean }>
+				response_metadata?: { next_cursor?: string }
+			}
+			if (!data.ok) return { error: data.error ?? String(res.status) }
+			for (const c of data.channels ?? []) found.push(`${c.id} ${c.is_private ? "private" : "public"}:${c.name ?? "?"}`)
+			cursor = data.response_metadata?.next_cursor ?? ""
+		} while (cursor)
+		return { found }
+	}
+	// Public channels need channels:read, which Nexus AI may not have; fall back to private only.
+	let result = await list("public_channel,private_channel")
+	if ("error" in result && result.error === "missing_scope") result = await list("private_channel")
+	if ("error" in result) {
+		console.error(`[company-brain] nexus-channels list failed: ${result.error}`)
+		return false
+	}
+	const { found } = result
+	console.log(`[company-brain] nexus-channels total=${found.length}`)
+	for (let i = 0; i < found.length; i += 40) {
+		console.log(`[company-brain] nexus-channels ${i + 1}-${i + found.slice(i, i + 40).length}: ${found.slice(i, i + 40).join(" | ")}`)
+	}
+	return true
 }
