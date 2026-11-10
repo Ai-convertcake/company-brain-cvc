@@ -71,6 +71,8 @@ ${BRAIN_CAPTURE_POLICY}
 
 Lines labeled ${BOT_AUTHOR_LABEL} (bots, apps, and the brain's own prior replies) are context only: read them to make human messages make sense, but never extract a memory from them and never record the brain's own statements as facts. Capture a fact only when a HUMAN states it.
 
+Never capture these, even when people state them plainly, and drop them before grouping: an individual's performance; salary, compensation or benefits; HR complaints, conflicts or disputes between people; personal criticism, insults or sensitive personal opinions; anything marked confidential or private; legal, compliance or audit matters; security incidents or confidential vendor negotiations; private strategy not approved for general sharing; personal conversations unrelated to the work; decisions, approvals or action requests assigned to the management team; private matters between management and one person; anything that could hurt working relationships if shared beyond the people involved. Memory here is shared with the whole team. When a message mixes work facts with one of these, keep only the work facts.
+
 Group the durable content into the fewest TAG-COHERENT clusters that remain independently retrievable. Each cluster covers ONE coherent subject sharing one tag set (a topic-tree path and/or its primary people). Keep related decisions, rationale, owners, and implications together even when several people are involved. Split only genuinely independent subjects, not supporting facts that merely add another person or possible tag. Keep the original wording and any dates — do NOT pre-atomize into single facts, and do NOT dump raw chatter. Prioritize durable CHANGES (ownership, responsibility, roles, decisions) and keep their dates in the text so the extractor can resolve recency. Retain explicit human commitments, blockers, and meaningful status changes with the capture policy's decay rules; exclude raw activity, live counts, and app-derived status snapshots. Skip pure chatter; if nothing durable, return an empty list.
 
 For each cluster: content = the curated relevant material (faithful, dates preserved); tags = the fewest coherent topic-tree paths ('/'-nested, reuse exact existing paths rather than creating near-duplicates) + person_<slack_user_id> only for primary people. Leave eventDate unset — dates stay in the content for the extractor to assign per fact.
@@ -766,7 +768,7 @@ export async function armChannelObserve(
 	}
 }
 
-const IMAGE_PROMPT = `Describe this image from a client-work Slack channel for the team's memory, in at most 80 words. Say what it is (ad creative, dashboard, report, chat screenshot, document). Copy the key visible text and numbers in their original language (Thai or English). Never copy phone numbers, emails, ID, account or card numbers, or the names of customers or leads.`
+const IMAGE_PROMPT = `Describe this image from a client-work Slack channel for the team's memory, in at most 80 words. Say what it is (ad creative, dashboard, report, chat screenshot, document). Copy the key visible text and numbers in their original language (Thai or English). Never copy phone numbers, emails, ID, account or card numbers, or the names of customers or leads. If the image shows salary, HR, legal, confidential or personal matters, reply only: sensitive, not described.`
 
 // Never throws: a failed image keeps only its file name and must not stall the channel.
 async function describeImage(botToken: string, file: SlackFileRef): Promise<string | null> {
