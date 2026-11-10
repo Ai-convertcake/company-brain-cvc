@@ -41,6 +41,7 @@ import { listConnectionsForActor } from "../tools/mcp/store"
 import { sandboxToolsConfigured } from "../tools/sandbox/client"
 import { createSandboxTools } from "../tools/sandbox/tools"
 import { createSchedulerTools } from "../tools/scheduler"
+import { createPostCardTools } from "../tools/post-card"
 import { createSendToTools } from "../tools/send-to"
 import type { TurnActor } from "./actor"
 import type { CompanyBrainAgent } from "./agent"
@@ -522,6 +523,17 @@ export async function assembleTurnTools(
 			),
 		)
 		console.log(`[company-brain][${traceId}] send_to available (admin)`)
+	}
+	// Cards post only into this conversation (or a report's own channel), never a DM.
+	if (slackLookup?.channel && !slackLookup.channel.startsWith("D") && !passiveInvestigation) {
+		Object.assign(
+			tools,
+			createPostCardTools(
+				deps,
+				{ botToken: slackLookup.botToken, channel: slackLookup.channel, threadTs: slackLookup.threadTs },
+				traceId,
+			),
+		)
 	}
 	if (
 		slackLookup?.teamId &&

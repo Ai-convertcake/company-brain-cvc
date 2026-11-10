@@ -214,7 +214,7 @@ export async function uploadSlackFile(
 	}
 }
 
-async function postSlackMessageRaw(
+export async function postSlackMessageRaw(
 	botToken: string,
 	channel: string,
 	text: string,
