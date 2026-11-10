@@ -38,6 +38,19 @@ export function nexusLearningChannels(
 		.filter(Boolean)
 }
 
+// "C123=Sentiment Watch;C456=..." limits a learned channel to posts containing that
+// text, plus their threads. Channels not listed are learned in full.
+export function nexusChannelKeyword(
+	env: Pick<Env, "NEXUS_CHANNEL_FILTERS">,
+	channelId: string,
+): string | undefined {
+	for (const pair of (env.NEXUS_CHANNEL_FILTERS ?? "").split(";")) {
+		const [id, ...rest] = pair.split("=")
+		if (id?.trim() === channelId) return rest.join("=").trim() || undefined
+	}
+	return undefined
+}
+
 const FIRST_READ_DAYS = 30
 
 // Never read further back than 30 days, even for a channel with no saved position.

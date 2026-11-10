@@ -11,6 +11,7 @@ import { BRAIN_CAPTURE_POLICY } from "../memory/profile-config"
 import {
 	isApprovedLearningChannel,
 	isNexusLearningChannel,
+	nexusChannelKeyword,
 	nexusLearningChannels,
 	observedMemoryScope,
 	channelContextLine,
@@ -869,7 +870,9 @@ async function spoolChannelPage(
 		return [observedMessageText(message), ...notes].filter(Boolean).join("\n")
 	}
 	const rows: Array<{ ts: string; author: string; text: string }> = []
+	const keyword = nexusChannelKeyword(brainAgent(agent).env, payload.channel)?.toLowerCase()
 	for (const message of fresh) {
+		if (keyword && !observedMessageText(message).toLowerCase().includes(keyword)) continue
 		rows.push({ ts: message.ts, author: authorOf(message), text: await textOf(message) })
 		if (!message.reply_count) continue
 		// Channel history leaves out thread replies, so read each thread here.

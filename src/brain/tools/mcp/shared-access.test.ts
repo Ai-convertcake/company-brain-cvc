@@ -8,6 +8,7 @@ import {
 	isPilotLockdown,
 	observedMemoryScope,
 	observedMessageText,
+	nexusChannelKeyword,
 	imagesToDescribe,
 	looksLikeImage,
 	observeStartTs,
@@ -156,5 +157,13 @@ describe("pilot lockdown", () => {
 		expect(looksLikeImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d]))).toBe(true)
 		expect(looksLikeImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe(true)
 		expect(looksLikeImage(new TextEncoder().encode("<!DOCTYPE html>"))).toBe(false)
+	})
+
+	it("finds a channel's keyword filter, and none for unlisted channels", () => {
+		const env = { NEXUS_CHANNEL_FILTERS: "C0126BTMW80=Sentiment Watch; C999=a=b" }
+		expect(nexusChannelKeyword(env, "C0126BTMW80")).toBe("Sentiment Watch")
+		expect(nexusChannelKeyword(env, "C999")).toBe("a=b")
+		expect(nexusChannelKeyword(env, "C111")).toBeUndefined()
+		expect(nexusChannelKeyword({}, "C0126BTMW80")).toBeUndefined()
 	})
 })
