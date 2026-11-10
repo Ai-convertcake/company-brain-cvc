@@ -79,6 +79,36 @@ export function observedMessageText(message: {
 	return parts.filter(Boolean).join("\n")
 }
 
+const LEARNABLE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/gif", "image/webp"])
+const MAX_LEARNED_IMAGE_BYTES = 10 * 1024 * 1024
+
+// Images worth describing: posted by a person, a readable type, small enough, within budget.
+export function imagesToDescribe<T extends { mimetype?: string; size?: number }>(
+	files: T[] | undefined,
+	fromBot: boolean,
+	budget: number,
+): T[] {
+	if (fromBot || budget <= 0) return []
+	return (files ?? [])
+		.filter(
+			(f) =>
+				LEARNABLE_IMAGE_TYPES.has((f.mimetype ?? "").toLowerCase()) &&
+				(f.size ?? 0) <= MAX_LEARNED_IMAGE_BYTES,
+		)
+		.slice(0, budget)
+}
+
+// Slack can answer a missing scope with an HTML sign-in page, so check the bytes are an image.
+export function looksLikeImage(b: Uint8Array): boolean {
+	const starts = (...bytes: number[]) => bytes.every((x, i) => b[i] === x)
+	return (
+		starts(0x89, 0x50, 0x4e, 0x47) || // png
+		starts(0xff, 0xd8, 0xff) || // jpeg
+		starts(0x47, 0x49, 0x46) || // gif
+		(starts(0x52, 0x49, 0x46, 0x46) && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) // webp
+	)
+}
+
 // No scope means company-wide memory, which must never hold a private channel.
 export function observedMemoryScope(channelId: string, isPrivate: boolean) {
 	return isPrivate

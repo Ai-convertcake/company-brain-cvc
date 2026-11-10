@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto"
 import type { Schedule } from "agents"
-import { generateObject } from "ai"
+import { generateObject, generateText } from "ai"
 import { z } from "zod"
 import { learningModel } from "@/config"
+import { downloadSlackFile, type SlackFileRef } from "./attachments"
 import { captureException } from "@/lib/capture"
 import { decryptToken } from "@/lib/crypto"
 import { writeMemories } from "../memory"
@@ -13,6 +14,8 @@ import {
 	nexusLearningChannels,
 	observedMemoryScope,
 	channelContextLine,
+	imagesToDescribe,
+	looksLikeImage,
 	observedMessageText,
 	observeStartTs,
 } from "../tools/mcp/shared-access"
@@ -761,6 +764,33 @@ export async function armChannelObserve(
 	}
 }
 
+const IMAGE_PROMPT = `Describe this image from a client-work Slack channel for the team's memory, in at most 80 words. Say what it is (ad creative, dashboard, report, chat screenshot, document). Copy the key visible text and numbers in their original language (Thai or English). Never copy phone numbers, emails, ID, account or card numbers, or the names of customers or leads.`
+
+// Never throws: a failed image keeps only its file name and must not stall the channel.
+async function describeImage(botToken: string, file: SlackFileRef): Promise<string | null> {
+	try {
+		const data = await downloadSlackFile(botToken, file)
+		if (!data || !looksLikeImage(data)) return null
+		const { text } = await generateText({
+			model: learningModel(),
+			maxOutputTokens: 300,
+			messages: [
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: IMAGE_PROMPT },
+						{ type: "image", image: data, mediaType: file.mimetype },
+					],
+				},
+			],
+		})
+		return text.replace(/\s+/g, " ").trim() || null
+	} catch (err) {
+		console.warn(`[company-brain] channel-observe image skipped: ${err instanceof Error ? err.message : String(err)}`)
+		return null
+	}
+}
+
 // Bot/app output (incl. the brain's own replies) isn't evidence and would create
 // a self-reinforcing memory loop, so it never enters the pending spool.
 function isBotAuthoredMessage(
@@ -811,9 +841,21 @@ async function spoolChannelPage(
 	// so the distiller uses them as context, never as a fact source.
 	const authorOf = (message: SlackThreadMessage) =>
 		isBotAuthoredMessage(message, botUserId) ? BOT_AUTHOR_LABEL : (message.user ?? "?")
+	// ponytail: at most 10 images described per page of 60 messages; the rest keep only their file name.
+	let imageBudget = 10
+	const textOf = async (message: SlackThreadMessage): Promise<string> => {
+		const images = imagesToDescribe(message.files, authorOf(message) === BOT_AUTHOR_LABEL, imageBudget)
+		imageBudget -= images.length
+		const notes: string[] = []
+		for (const file of images) {
+			const note = await describeImage(botToken, { ...file, name: file.name ?? "image" })
+			if (note) notes.push(`[image: ${file.name ?? "image"} — ${note}]`)
+		}
+		return [observedMessageText(message), ...notes].filter(Boolean).join("\n")
+	}
 	const rows: Array<{ ts: string; author: string; text: string }> = []
 	for (const message of fresh) {
-		rows.push({ ts: message.ts, author: authorOf(message), text: observedMessageText(message) })
+		rows.push({ ts: message.ts, author: authorOf(message), text: await textOf(message) })
 		if (!message.reply_count) continue
 		// Channel history leaves out thread replies, so read each thread here.
 		// ponytail: a thread is read once, when its parent is first spooled, so later
@@ -830,7 +872,7 @@ async function spoolChannelPage(
 			rows.push({
 				ts: reply.ts,
 				author: authorOf(reply),
-				text: `[thread reply to: "${parent}"]\n${observedMessageText(reply)}`,
+				text: `[thread reply to: "${parent}"]\n${await textOf(reply)}`,
 			})
 		}
 	}
@@ -1259,7 +1301,11 @@ export async function runNexusLearning(agent: CompanyBrainAgent): Promise<void> 
 	for (const channel of channels) {
 		await armChannelObserve(agent, { teamId, channel })
 	}
-	console.log(`[company-brain] nexus-learning armed channels=${channels.length}`)
+	// Images are only read once the Nexus app has files:read; this shows whether it does.
+	const scopes = (res.headers.get("x-oauth-scopes") ?? "").split(",").map((s) => s.trim())
+	console.log(
+		`[company-brain] nexus-learning armed channels=${channels.length} files_read=${scopes.includes("files:read")}`,
+	)
 }
 
 /** Keep exactly one daily Nexus learning schedule (02:00 Bangkok). */

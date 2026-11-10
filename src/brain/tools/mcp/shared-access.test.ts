@@ -8,6 +8,8 @@ import {
 	isPilotLockdown,
 	observedMemoryScope,
 	observedMessageText,
+	imagesToDescribe,
+	looksLikeImage,
 	observeStartTs,
 	scheduledRunMayUseShared,
 	isApprovedSharedMcpChannel,
@@ -139,5 +141,20 @@ describe("pilot lockdown", () => {
 		).toBe("brief here\n[file: Nov_pricing.pdf (application/pdf)]\n[link: Tracker https://docs.google.com/x]")
 		expect(observedMessageText({ files: [{ name: "a.png" }] })).toBe("[file: a.png]")
 		expect(observedMessageText({})).toBe("")
+	})
+
+	it("describes only people's images of a readable type, within the budget", () => {
+		const png = { mimetype: "image/png", size: 1000 }
+		const files = [png, { mimetype: "application/pdf" }, { mimetype: "image/jpeg", size: 20 * 1024 * 1024 }, png]
+		expect(imagesToDescribe(files, false, 10)).toEqual([png, png])
+		expect(imagesToDescribe(files, false, 1)).toEqual([png])
+		expect(imagesToDescribe(files, true, 10)).toEqual([])
+		expect(imagesToDescribe(files, false, 0)).toEqual([])
+	})
+
+	it("tells real images from an HTML sign-in page", () => {
+		expect(looksLikeImage(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d]))).toBe(true)
+		expect(looksLikeImage(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]))).toBe(true)
+		expect(looksLikeImage(new TextEncoder().encode("<!DOCTYPE html>"))).toBe(false)
 	})
 })
