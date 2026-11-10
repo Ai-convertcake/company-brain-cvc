@@ -19,12 +19,12 @@ import {
 	observedMessageText,
 	observeStartTs,
 } from "../tools/mcp/shared-access"
-import { MAX_BRAIN_OBSERVE_DOCS, personBrainTagKey } from "../memory/tags"
+import { MAX_BRAIN_OBSERVE_DOCS, MAX_BRAIN_TAGS_PER_MEMORY, personBrainTagKey } from "../memory/tags"
 import {
 	getBrainMemoryResetEpoch,
 	isBrainMemoryResetEpochCurrent,
 } from "../memory/tree"
-import { type MemoryDocInput, MemoryDocSchema } from "../memory/writeback"
+import { BrainMemoryTagSchema, type MemoryDocInput, MemoryDocSchema } from "../memory/writeback"
 import { brainAgent, type CompanyBrainAgent } from "../turn/agent"
 import {
 	advanceDurableRetry,
@@ -61,8 +61,12 @@ export type ChannelObservePayload = {
 	resetEpoch?: number
 }
 
+// Haiku often tags every person in a busy thread; accept extra tags and keep the best four
+// below, instead of failing the whole batch.
 const DistillSchema = z.object({
-	memories: z.array(MemoryDocSchema).max(MAX_BRAIN_OBSERVE_DOCS),
+	memories: z
+		.array(MemoryDocSchema.extend({ tags: z.array(BrainMemoryTagSchema).min(1) }))
+		.max(MAX_BRAIN_OBSERVE_DOCS),
 })
 
 const DISTILL_SYSTEM = `You watch a batch of new Slack channel messages and CURATE what's worth remembering for this channel's memory. You do NOT write the final memories — you select and group the durable material; a downstream extractor turns each group into durable memories, dedupes, and supersedes stale facts.
@@ -82,6 +86,13 @@ The SLACK_CHANNEL line says where the messages come from. When the channel or th
 Keep the URLs and file names that a decision, brief or deliverable refers to, so people can find the source later.
 
 Client channels are full of task traffic: tracker notifications, due dates, revision rounds, "sent", "revised", "done". Do not keep a single task's due date, revision count or current state; it is stale within days. Keep what stays true after the task closes: who does which step, the client's preferences and feedback, decisions and why, prices, budgets, rules, and problems that recur. When you keep a date, it is the day something was decided or changed.`
+
+/** Topic tags first, then people, up to the per-memory limit. */
+function keepBestTags<T extends { kind?: string }>(tags: T[]): T[] {
+	const topics = tags.filter((t) => t.kind !== "person")
+	const people = tags.filter((t) => t.kind === "person")
+	return [...topics, ...people].slice(0, MAX_BRAIN_TAGS_PER_MEMORY)
+}
 
 type PendingMessage = SlackThreadMessage & { ts: string }
 type PersistedChannelBatch = {
@@ -1076,6 +1087,7 @@ async function processPendingBatch(
 		const clusters: MemoryDocInput[] = result.object.memories.map(
 			(memory, index) => ({
 				...memory,
+				tags: keepBestTags(memory.tags),
 				content: `DOCUMENT_DATE: ${docDate}\n${channelLine ? `${channelLine}\n` : ""}${memory.content}`,
 				internalCustomIdOverride: stableClusterCustomId(
 					ws.orgId,
