@@ -1,5 +1,5 @@
 import type { ToolSet } from "ai"
-import { CARD_SPEC_GUIDE, specToSlackCard } from "../slack/cards"
+import { CARD_PROMPT, jsonlToSlackCard } from "../slack/cards"
 import { postSlackMessageRaw } from "../slack/client"
 import type { TurnDeps } from "../turn/deps"
 
@@ -18,17 +18,12 @@ export function createPostCardTools(
 2. Fields with exactly 2 grouped Field items side by side, e.g. label "ผลลัพธ์" and label "งบ & Pacing". Each value is 2-4 lines, one metric per line: "CPR: *13.41 THB* ▲ ดีกว่าเป้า 11%". Use ▲/▼ or 🟢/🔴 for direction; keep each line short.
 3. A Table for the breakdown (top 5-8 rows, short column names with units).
 4. A Chart only when it adds something: prefer a bar chart comparing items (e.g. CPR by platform), a line chart for a trend; use pie only for 2-4 shares.
-5. A muted Text last with the source and "ข้อมูลถึง <date>". Add an Actions LinkButton (e.g. "ดูรายงาน") only when you have a real URL. Use plain text for everything else. After it posts, reply only with any "→ ชื่อคน: action" lines; the takeaway is already in the card, so do not repeat it or its numbers.\n\n${CARD_SPEC_GUIDE}`,
+5. A muted Text last with the source and "ข้อมูลถึง <date>". Add an Actions LinkButton (e.g. "ดูรายงาน") only when you have a real URL. Use plain text for everything else. After it posts, reply only with any "→ ชื่อคน: action" lines; the takeaway is already in the card, so do not repeat it or its numbers.\n\nWrite the card in json-render's format below and pass it as jsonl. That format applies only to this argument; your replies to people stay normal text.\n<card_format>\n${CARD_PROMPT}\n</card_format>`,
 			inputSchema: deps.z.object({
-				spec: deps.z
-					.object({
-						root: deps.z.string(),
-						elements: deps.z.record(deps.z.string(), deps.z.any()),
-					})
-					.describe("The json-render card spec."),
+				jsonl: deps.z.string().describe("The card as JSONL patch lines, one JSON object per line, in the card_format above."),
 			}),
-			execute: async ({ spec }) => {
-				const out = specToSlackCard(spec)
+			execute: async ({ jsonl }) => {
+				const out = jsonlToSlackCard(jsonl)
 				if (!out.ok) {
 					return `The card spec is invalid. Fix it, or answer in plain text:\n- ${out.issues.join("\n- ")}`
 				}
