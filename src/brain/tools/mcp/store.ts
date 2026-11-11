@@ -192,6 +192,14 @@ export async function markConnectionError(
 		.where(eq(mcpConnection.id, connectionId))
 }
 
+/** Clears an error so the connection is tried again with its saved credentials. */
+export async function markConnectionActive(env: Env, connectionId: string): Promise<void> {
+	await db(env)
+		.update(mcpConnection)
+		.set({ status: "active", updatedAt: new Date() })
+		.where(eq(mcpConnection.id, connectionId))
+}
+
 export async function deleteConnection(
 	env: Env,
 	orgId: string,

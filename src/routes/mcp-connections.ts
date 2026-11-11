@@ -51,7 +51,9 @@ import {
 import { McpConnectProvider } from "@/lib/brain/tools/mcp/oauth-provider"
 import {
 	deleteConnection,
+	getConnection,
 	listConnectionsForActor,
+	markConnectionActive,
 	upsertStaticConnection,
 } from "@/lib/brain/tools/mcp/store"
 import { decryptToken } from "@/lib/crypto"
@@ -580,6 +582,42 @@ export const brainMcpConnectionsRoutes = new Hono<AppContext>()
 					)
 				}),
 		)
+		return c.json({ ok: true })
+	})
+	// Reconnect: reuse the saved credentials, drop cached tools, and redo sign-in when OAuth needs it.
+	.post("/:slug/reconnect", async (c) => {
+		const org = c.get("org")
+		const user = c.get("user")
+		if (!org || !user) return c.json({ error: "unauthorized" }, 401)
+		const slug = c.req.param("slug").toLowerCase()
+		const body = await c.req
+			.json<{ shared?: boolean; redirectUrl?: string }>()
+			.catch(() => ({}) as Record<string, never>)
+		if (body.shared && !canManageShared(c))
+			return c.json({ error: "org admin required for shared connections" }, 403)
+		const connection = await getConnection(c.env, org.id, slug, body.shared ? null : user.id)
+		if (!connection) return c.json({ error: "not connected" }, 404)
+		await markConnectionActive(c.env, connection.id)
+		await getAgentByName(c.env.COMPANY_BRAIN_AGENT, org.id)
+			.then((agent) => agent.onConnectionChanged(slug))
+			.catch((error) => {
+				console.warn(
+					`[mcp-connect] reconnect invalidation failed: ${error instanceof Error ? error.message : String(error)}`,
+				)
+			})
+		if (connection.authType === "oauth") {
+			const result = await startMcpConnect({
+				env: c.env,
+				orgId: org.id,
+				userId: user.id,
+				slug,
+				callbackOrigin: publicApiOrigin(c.env, c.req.url),
+				shared: body.shared,
+				serverUrl: connection.serverUrl ?? undefined,
+				redirectUrl: body.redirectUrl,
+			})
+			if (result.ok && "authUrl" in result) return c.json({ authUrl: result.authUrl })
+		}
 		return c.json({ ok: true })
 	})
 	// Disconnect.

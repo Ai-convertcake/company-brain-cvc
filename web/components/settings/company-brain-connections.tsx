@@ -650,6 +650,35 @@ export default function CompanyBrainConnections() {
 		}
 	}
 
+	const reconnect = async (slug: string, name: string, shared: boolean) => {
+		const key = `${slug}:${shared ? "org" : "user"}`
+		setBusy(key)
+		try {
+			const res = await fetch(`${MCP_BASE}/${slug}/reconnect`, {
+				method: "POST",
+				credentials: "include",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ shared, redirectUrl: window.location.href }),
+			})
+			if (res.status === 403) {
+				toast.error("Only admins can reconnect the shared org account.")
+				return
+			}
+			const data = (await res.json().catch(() => ({}))) as { authUrl?: string; ok?: boolean }
+			if (!res.ok) {
+				toast.error("Couldn't reconnect.")
+				return
+			}
+			if (data.authUrl) window.open(data.authUrl, "_blank", "noopener")
+			else toast.success(`${name} reconnected.`)
+			await load()
+		} catch {
+			toast.error("Couldn't reconnect.")
+		} finally {
+			setBusy(null)
+		}
+	}
+
 	const disconnect = async (entry: CatalogEntry, shared: boolean) => {
 		if (
 			!window.confirm(
@@ -691,7 +720,6 @@ export default function CompanyBrainConnections() {
 	const customRows = canClassifyCustomRows
 		? rows.filter(
 				(row) =>
-					row.status === "active" &&
 					typeof row.serverUrl === "string" &&
 					row.serverUrl.length > 0 &&
 					!catalogSlugs.has(row.serverSlug),
@@ -977,9 +1005,21 @@ export default function CompanyBrainConnections() {
 								{customRows.map((row) => (
 									<InstalledTile
 										key={`custom-${row.serverSlug}-${row.userId ?? "org"}`}
-										name={`${customConnectionName(row.serverSlug)}${row.userId === null ? " (shared)" : ""}`}
+										name={`${customConnectionName(row.serverSlug)}${row.userId === null ? " (shared)" : ""}${row.status === "active" ? "" : " · needs reconnect"}`}
 										icon={brainConnectorIcon(row.serverSlug, row.serverSlug)}
 									>
+										<DropdownMenuItem
+											className={menuItemClass}
+											onClick={() =>
+												reconnect(
+													row.serverSlug,
+													customConnectionName(row.serverSlug),
+													row.userId === null,
+												)
+											}
+										>
+											Reconnect
+										</DropdownMenuItem>
 										<DropdownMenuItem
 											className={menuItemClass}
 											onClick={() =>
