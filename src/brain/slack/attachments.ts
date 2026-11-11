@@ -1,5 +1,6 @@
 import type { FilePart, ImagePart, TextPart, UserContent } from "ai"
 import type { SlackThreadMessage } from "./client"
+import { fileToText, textFileKind } from "./office-text"
 
 export type SlackFileRef = {
 	id: string
@@ -130,8 +131,12 @@ export function collectTurnFiles(
 
 export function isModelReadableSlackFile(file: SlackFileRef): boolean {
 	const mediaType = (file.mimetype ?? "").toLowerCase()
-	if (!mediaType) return false
-	return IMAGE_MEDIA_TYPES.has(mediaType) || mediaType === "application/pdf"
+	if (!mediaType && !textFileKind(file.name)) return false
+	return (
+		IMAGE_MEDIA_TYPES.has(mediaType) ||
+		mediaType === "application/pdf" ||
+		textFileKind(file.name, mediaType) !== undefined
+	)
 }
 
 export function formatMessageAttachmentHint(
@@ -217,7 +222,7 @@ export async function downloadSlackFile(
 	}
 }
 
-export type ThreadAttachmentPart = ImagePart | FilePart
+export type ThreadAttachmentPart = ImagePart | FilePart | TextPart
 
 export async function loadThreadAttachmentParts(
 	botToken: string,
@@ -229,6 +234,16 @@ export async function loadThreadAttachmentParts(
 		const data = await downloadSlackFile(botToken, file)
 		if (!data) continue
 		const mediaType = (file.mimetype ?? "").toLowerCase()
+		const textKind = textFileKind(file.name, mediaType)
+		if (textKind) {
+			try {
+				const text = await fileToText(textKind, data)
+				parts.push({ type: "text", text: `<file name="${file.name}">\n${text}\n</file>` })
+			} catch (err) {
+				console.warn(`[slack] could not read ${file.name}:`, err)
+			}
+			continue
+		}
 		if (IMAGE_MEDIA_TYPES.has(mediaType)) {
 			parts.push({
 				type: "image",
@@ -257,7 +272,7 @@ export function buildTurnUserContent(
 	const textParts: TextPart[] = [
 		{
 			type: "text",
-			text: `${textPrompt}\n\n<slack_attachments>\n${attachmentParts.length} image/PDF file(s) from this Slack thread are attached below for direct inspection. Use their content when answering — especially screenshots shared earlier in the thread.\n</slack_attachments>`,
+			text: `${textPrompt}\n\n<slack_attachments>\n${attachmentParts.length} file(s) from this Slack thread are attached below for direct inspection (Excel, Word and CSV files as text). Use their content when answering — especially screenshots shared earlier in the thread.\n</slack_attachments>`,
 		},
 	]
 	return [...textParts, ...attachmentParts]
