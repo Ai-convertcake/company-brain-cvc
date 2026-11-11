@@ -9,6 +9,7 @@ import {
 	sandboxToolsConfigured,
 } from "./client"
 import {
+	downloadImage,
 	normalizeCwd,
 	sandboxLimits,
 	workspacePath,
@@ -397,6 +398,40 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 			})
 		: undefined
 
+	const sandbox_save_image = writeTextFile
+		? deps.tool({
+				description:
+					"Download an image from a public https URL (a screenshot from firecrawl, a post thumbnail, an ad creative, a chart) into the active sandbox, so you can put it into a PDF, Word or Excel file. The sandbox itself has no internet; use this instead of curl. Max 5 MB; PNG, JPEG, GIF or WebP only.",
+				inputSchema: deps.z.object({
+					url: deps.z.string().url().describe("Public https image URL."),
+					path: deps.z
+						.string()
+						.min(1)
+						.describe("Where to save it, relative to the workspace, e.g. images/post1.jpg."),
+				}),
+				execute: async ({ url, path }) => {
+					try {
+						const session = loadSandboxSession(agent, sessionKey)
+						if (!session) return missingSession()
+						const image = await downloadImage(url)
+						if (!image.ok) return { error: image.error }
+						artifactUploads.clear()
+						const out = await writeTextFile({
+							sandboxId: session.sandboxId,
+							path: workspacePath(path, session.defaultCwd),
+							content: base64FromArrayBuffer(image.bytes.buffer as ArrayBuffer),
+							encoding: "base64",
+						})
+						touchSandboxSession(agent, session)
+						console.log(`[company-brain][${traceId}] sandbox_save_image bytes=${out.bytes} path=${out.path}`)
+						return out
+					} catch (error) {
+						return toolError(error)
+					}
+				},
+			})
+		: undefined
+
 	return {
 		sandbox_start,
 		sandbox_run,
@@ -404,5 +439,6 @@ export function createSandboxTools(args: CreateSandboxToolsArgs): ToolSet {
 		sandbox_read_file,
 		sandbox_get_artifact,
 		...(sandbox_write_file ? { sandbox_write_file } : {}),
+		...(sandbox_save_image ? { sandbox_save_image } : {}),
 	}
 }

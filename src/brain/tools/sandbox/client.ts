@@ -45,6 +45,8 @@ export type SandboxClient = {
 		sandboxId: string
 		path: string
 		content: string
+		/** "base64" writes binary content, e.g. a downloaded image. */
+		encoding?: "base64"
 	}): Promise<{ path: string; bytes: number }>
 	getArtifact(args: { sandboxId: string; path: string }): Promise<{
 		path: string

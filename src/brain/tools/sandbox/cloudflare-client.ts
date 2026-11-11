@@ -152,8 +152,12 @@ export function createCloudflareSandboxClient(env: Env): SandboxClient {
 			await sandboxFor(env, args.sandboxId).writeFile(
 				absolute(path),
 				args.content,
+				args.encoding ? { encoding: args.encoding } : undefined,
 			)
-			return { path, bytes: new TextEncoder().encode(args.content).length }
+			const bytes = args.encoding
+				? Math.floor((args.content.length * 3) / 4) - (args.content.match(/=*$/)?.[0].length ?? 0)
+				: new TextEncoder().encode(args.content).length
+			return { path, bytes }
 		},
 
 		async getArtifact(args) {

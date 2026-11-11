@@ -1,3 +1,5 @@
+import { looksLikeImage } from "../mcp/shared-access"
+
 const DEFAULT_TIMEOUT_SEC = 30
 const MAX_TIMEOUT_SEC = 120
 const MAX_OUTPUT_CHARS = 50_000
@@ -200,4 +202,24 @@ export function workspacePath(
 		cleaned.startsWith(`${defaultCwd}/`)
 		? cleaned
 		: `${defaultCwd}/${cleaned}`
+}
+
+// The sandbox has no internet, so the Worker fetches images for it: public https only,
+// capped at the artifact limit, and the bytes must really be an image.
+export async function downloadImage(
+	imageUrl: string,
+	fetchFn: typeof fetch = fetch,
+): Promise<{ ok: true; bytes: Uint8Array } | { ok: false; error: string }> {
+	const checked = validateRepoUrl(imageUrl)
+	if (!checked.ok) return { ok: false, error: "Image URL must be a public https link." }
+	const response = await fetchFn(checked.url, { headers: { accept: "image/*" } })
+	if (!response.ok) return { ok: false, error: `Download failed with HTTP ${response.status}.` }
+	if (Number(response.headers.get("content-length") ?? 0) > MAX_ARTIFACT_BYTES) {
+		await response.body?.cancel()
+		return { ok: false, error: "Image is larger than 5 MB." }
+	}
+	const bytes = new Uint8Array(await response.arrayBuffer())
+	if (bytes.byteLength > MAX_ARTIFACT_BYTES) return { ok: false, error: "Image is larger than 5 MB." }
+	if (!looksLikeImage(bytes)) return { ok: false, error: "That link did not return a PNG, JPEG, GIF or WebP image." }
+	return { ok: true, bytes }
 }
