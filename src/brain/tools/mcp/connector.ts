@@ -32,6 +32,7 @@ import {
 } from "./policy"
 import type { ToolProviderHandle } from "./provider"
 import { createProviderMcpClient } from "./provider-client"
+import { withThailandDefault } from "./shared-access"
 import {
 	type CommandWrapperVirtualMethod,
 	captureCommandWrapperResult,
@@ -441,9 +442,13 @@ export class CompanyBrainMcpConnector extends McpConnector<Env> {
 
 					let remoteInput: unknown
 					try {
-						remoteInput = args.remoteInput
-							? args.remoteInput(input, evaluated)
-							: evaluated.logicalInput
+						remoteInput = withThailandDefault(
+							this.target.ref.serverSlug,
+							args.method.sourceToolName,
+							args.remoteInput
+								? args.remoteInput(input, evaluated)
+								: evaluated.logicalInput,
+						)
 					} catch (error) {
 						throwEncoded(
 							toolError({

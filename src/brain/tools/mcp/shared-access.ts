@@ -172,6 +172,16 @@ export function findS3Url(value: unknown): string | undefined {
 	return undefined
 }
 
+// Firecrawl searches and scrapes from the US unless told otherwise; Convert Cake's default is Thailand.
+export function withThailandDefault(app: string, method: string, input: unknown): unknown {
+	if (app !== "firecrawl" || !input || typeof input !== "object" || Array.isArray(input)) return input
+	const args = input as Record<string, unknown>
+	if (args.location !== undefined || args.alexandria !== undefined) return input
+	if (method === "firecrawl_search") return { ...args, location: "Thailand" }
+	if (method === "firecrawl_scrape") return { ...args, location: { country: "TH", languages: ["th-TH", "th", "en"] } }
+	return input
+}
+
 // Slack can answer a missing scope with an HTML sign-in page, so check the bytes are an image.
 export function looksLikeImage(b: Uint8Array): boolean {
 	const starts = (...bytes: number[]) => bytes.every((x, i) => b[i] === x)

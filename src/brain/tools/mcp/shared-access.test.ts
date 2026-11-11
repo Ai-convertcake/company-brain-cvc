@@ -12,6 +12,7 @@ import {
 	nexusChannelKeyword,
 	documentsToRead,
 	findS3Url,
+	withThailandDefault,
 	googleFileLinks,
 	imagesToDescribe,
 	looksLikeImage,
@@ -209,5 +210,21 @@ describe("google links", () => {
 		}
 		expect(findS3Url(reply)).toBe("https://x.r2.dev/f?sig=1")
 		expect(findS3Url({ content: [{ type: "text", text: "error" }] })).toBeUndefined()
+	})
+})
+
+describe("withThailandDefault", () => {
+	it("defaults firecrawl search and scrape to Thailand", () => {
+		expect(withThailandDefault("firecrawl", "firecrawl_search", { query: "clinic" })).toEqual({ query: "clinic", location: "Thailand" })
+		expect(withThailandDefault("firecrawl", "firecrawl_scrape", { url: "x" })).toEqual({
+			url: "x",
+			location: { country: "TH", languages: ["th-TH", "th", "en"] },
+		})
+	})
+	it("keeps a location the bot chose, and leaves other apps alone", () => {
+		const vn = { query: "clinic", location: "Vietnam" }
+		expect(withThailandDefault("firecrawl", "firecrawl_search", vn)).toBe(vn)
+		const treg = { query: "x" }
+		expect(withThailandDefault("treg-ai", "call", treg)).toBe(treg)
 	})
 })

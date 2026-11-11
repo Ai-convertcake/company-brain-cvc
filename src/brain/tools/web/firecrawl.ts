@@ -76,6 +76,9 @@ export async function firecrawlSearch(
 		{
 			query: params.query,
 			limit: params.limit,
+			// Convert Cake works in Thailand; Firecrawl otherwise searches from the US.
+			country: "TH",
+			location: "Thailand",
 			...(params.freshness ? { tbs: FRESHNESS_TBS[params.freshness] } : {}),
 		},
 		params.timeoutMs,
