@@ -50,7 +50,8 @@ export function raceWithAbortSignal<T>(
 	})
 }
 
-export const TURN_DEADLINE_MS = 5 * 60 * 1000
+// Multi-app questions (data + ads + Treg + web + a PDF) need well over 5 minutes.
+export const TURN_DEADLINE_MS = 15 * 60 * 1000
 
 // The race stops awaiting; the operation still needs to meter and clean up.
 export function retainAbandoned(
