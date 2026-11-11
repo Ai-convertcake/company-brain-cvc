@@ -4,6 +4,7 @@ import { generateObject, generateText } from "ai"
 import { z } from "zod"
 import { learningModel } from "@/config"
 import { downloadSlackFile, type SlackFileRef } from "./attachments"
+import { fileToText, textFileKind } from "./office-text"
 import { captureException } from "@/lib/capture"
 import { decryptToken } from "@/lib/crypto"
 import { writeMemories } from "../memory"
@@ -16,6 +17,7 @@ import {
 	observedMemoryScope,
 	channelContextLine,
 	citedMessageIndexes,
+	documentsToRead,
 	imagesToDescribe,
 	looksLikeImage,
 	observedMessageText,
@@ -76,7 +78,7 @@ ${BRAIN_CAPTURE_POLICY}
 
 Lines labeled ${BOT_AUTHOR_LABEL} (bots, apps, and the brain's own prior replies) are context only: read them to make human messages make sense, but never extract a memory from them and never record the brain's own statements as facts. Capture a fact only when a HUMAN states it.
 
-Never capture these, even when people state them plainly, and drop them before grouping: an individual's performance; salary, compensation or benefits; HR complaints, conflicts or disputes between people; personal criticism, insults or sensitive personal opinions; anything marked confidential or private; legal, compliance or audit matters; security incidents or confidential vendor negotiations; private strategy not approved for general sharing; personal conversations unrelated to the work; decisions, approvals or action requests assigned to the management team; private matters between management and one person; anything that could hurt working relationships if shared beyond the people involved. Memory here is shared with the whole team. When a message mixes work facts with one of these, keep only the work facts.
+Never capture these, even when people state them plainly, and drop them before grouping: an individual's performance; salary, compensation or benefits; HR complaints, conflicts or disputes between people; personal criticism, insults or sensitive personal opinions; anything marked confidential or private; legal, compliance or audit matters; security incidents or confidential vendor negotiations; private strategy not approved for general sharing; personal conversations unrelated to the work; decisions, approvals or action requests assigned to the management team; private matters between management and one person; anything that could hurt working relationships if shared beyond the people involved. Never capture passwords, pass codes, PINs, API keys, tokens or login details. Memory here is shared with the whole team. When a message mixes work facts with one of these, keep only the work facts.
 
 Group the durable content into the fewest TAG-COHERENT clusters that remain independently retrievable. Each cluster covers ONE coherent subject sharing one tag set (a topic-tree path and/or its primary people). Keep related decisions, rationale, owners, and implications together even when several people are involved. Split only genuinely independent subjects, not supporting facts that merely add another person or possible tag. Keep the original wording and any dates — do NOT pre-atomize into single facts, and do NOT dump raw chatter. Prioritize durable CHANGES (ownership, responsibility, roles, decisions) and keep their dates in the text so the extractor can resolve recency. Retain explicit human commitments, blockers, and meaningful status changes with the capture policy's decay rules; exclude raw activity, live counts, and app-derived status snapshots. Skip pure chatter; if nothing durable, return an empty list.
 
@@ -784,6 +786,32 @@ export async function armChannelObserve(
 
 const IMAGE_PROMPT = `Describe this image from a client-work Slack channel for the team's memory, in at most 80 words. Say what it is (ad creative, dashboard, report, chat screenshot, document). Copy the key visible text and numbers in their original language (Thai or English). Never copy phone numbers, emails, ID, account or card numbers, or the names of customers or leads. If the image shows salary, HR, legal, confidential or personal matters, reply only: sensitive, not described.`
 
+const FILE_PROMPT = `Summarize this file from a client-work Slack channel for the team's memory, in at most 150 words. Say what it is (media plan, brief, report, budget, proposal, list) and which client, then the key facts: budgets, KPIs, dates, platforms, decisions, owners. Keep numbers and the original language (Thai or English). Never copy passwords, pass codes, API keys, tokens, phone numbers, emails, ID, account or card numbers, or the names of customers or leads. If the file is about salary, HR, legal, confidential or personal matters, reply only: sensitive, not described.`
+
+// Never throws: a failed file keeps only its file name and must not stall the channel.
+async function describeFile(botToken: string, file: SlackFileRef): Promise<string | null> {
+	try {
+		const data = await downloadSlackFile(botToken, file)
+		if (!data) return null
+		const kind = textFileKind(file.name, file.mimetype)
+		const content = kind
+			? [{ type: "text" as const, text: `${FILE_PROMPT}\n\n<file name="${file.name}">\n${(await fileToText(kind, data)).slice(0, 30_000)}\n</file>` }]
+			: [
+					{ type: "text" as const, text: FILE_PROMPT },
+					{ type: "file" as const, data, mediaType: "application/pdf", filename: file.name },
+				]
+		const { text } = await generateText({
+			model: learningModel(),
+			maxOutputTokens: 400,
+			messages: [{ role: "user", content }],
+		})
+		return text.replace(/\s+/g, " ").trim() || null
+	} catch (err) {
+		console.warn(`[company-brain] channel-observe file skipped: ${err instanceof Error ? err.message : String(err)}`)
+		return null
+	}
+}
+
 // Never throws: a failed image keeps only its file name and must not stall the channel.
 async function describeImage(botToken: string, file: SlackFileRef): Promise<string | null> {
 	try {
@@ -861,13 +889,22 @@ async function spoolChannelPage(
 		isBotAuthoredMessage(message, botUserId) ? BOT_AUTHOR_LABEL : (message.user ?? "?")
 	// ponytail: at most 10 images described per page of 60 messages; the rest keep only their file name.
 	let imageBudget = 10
+	// ponytail: at most 5 files (Excel, Word, CSV, PDF) summarized per page; the rest keep only their name.
+	let fileBudget = 5
 	const textOf = async (message: SlackThreadMessage): Promise<string> => {
-		const images = imagesToDescribe(message.files, authorOf(message) === BOT_AUTHOR_LABEL, imageBudget)
+		const fromBot = authorOf(message) === BOT_AUTHOR_LABEL
+		const images = imagesToDescribe(message.files, fromBot, imageBudget)
 		imageBudget -= images.length
+		const docs = documentsToRead(message.files, fromBot, fileBudget)
+		fileBudget -= docs.length
 		const notes: string[] = []
 		for (const file of images) {
 			const note = await describeImage(botToken, { ...file, name: file.name ?? "image" })
 			if (note) notes.push(`[image: ${file.name ?? "image"} — ${note}]`)
+		}
+		for (const file of docs) {
+			const note = await describeFile(botToken, { ...file, name: file.name ?? "file" })
+			if (note) notes.push(`[file content: ${file.name ?? "file"} — ${note}]`)
 		}
 		return [observedMessageText(message), ...notes].filter(Boolean).join("\n")
 	}

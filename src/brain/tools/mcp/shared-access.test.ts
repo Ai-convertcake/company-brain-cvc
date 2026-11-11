@@ -10,6 +10,7 @@ import {
 	observedMessageText,
 	citedMessageIndexes,
 	nexusChannelKeyword,
+	documentsToRead,
 	imagesToDescribe,
 	looksLikeImage,
 	observeStartTs,
@@ -172,5 +173,16 @@ describe("pilot lockdown", () => {
 		expect(citedMessageIndexes(["3", "[1]", "#3", "https://x.com", "99", "0"], 5)).toEqual([2, 0])
 		expect(citedMessageIndexes(["1", "2", "3", "4"], 9)).toEqual([0, 1, 2])
 		expect(citedMessageIndexes([], 9)).toEqual([])
+	})
+})
+
+describe("documentsToRead", () => {
+	it("picks Excel, Word, CSV and PDF files from people, within budget", () => {
+		const xlsx = { name: "plan.xlsx", size: 100 }
+		const pdf = { name: "report", mimetype: "application/pdf", size: 100 }
+		const files = [xlsx, { name: "a.png", mimetype: "image/png" }, pdf, { name: "big.docx", size: 20 * 1024 * 1024 }]
+		expect(documentsToRead(files, false, 5)).toEqual([xlsx, pdf])
+		expect(documentsToRead(files, false, 1)).toEqual([xlsx])
+		expect(documentsToRead(files, true, 5)).toEqual([])
 	})
 })

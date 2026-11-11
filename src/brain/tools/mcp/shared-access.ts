@@ -123,6 +123,24 @@ export function imagesToDescribe<T extends { mimetype?: string; size?: number }>
 		.slice(0, budget)
 }
 
+const READABLE_DOC = /\.(xlsx|docx|csv|tsv|txt|md|pdf)$/i
+
+// Files worth summarizing: posted by a person, a readable kind, small enough, within budget.
+export function documentsToRead<T extends { name?: string; mimetype?: string; size?: number }>(
+	files: T[] | undefined,
+	fromBot: boolean,
+	budget: number,
+): T[] {
+	if (fromBot || budget <= 0) return []
+	return (files ?? [])
+		.filter(
+			(f) =>
+				(READABLE_DOC.test(f.name ?? "") || f.mimetype === "application/pdf") &&
+				(f.size ?? 0) <= MAX_LEARNED_IMAGE_BYTES,
+		)
+		.slice(0, budget)
+}
+
 // Slack can answer a missing scope with an HTML sign-in page, so check the bytes are an image.
 export function looksLikeImage(b: Uint8Array): boolean {
 	const starts = (...bytes: number[]) => bytes.every((x, i) => b[i] === x)
