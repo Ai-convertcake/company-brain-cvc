@@ -13,12 +13,11 @@ export function createPostCardTools(
 ): ToolSet {
 	return {
 		post_card: deps.tool({
-			description: `Post a formatted Slack card in this conversation: a title, KPI fields, one table, up to 2 charts, link buttons. Use this tool instead of a markdown table whenever the answer is about performance, spend, KPIs vs target, pacing, a breakdown by campaign, platform, client or month, or a list of clients with their status. Layout that reads best:
+			description: `Post a formatted Slack card in this conversation: a title, KPI fields, one table, link buttons (no charts: Slack can't show them here). Use this tool instead of a markdown table whenever the answer is about performance, spend, KPIs vs target, pacing, a breakdown by campaign, platform, client or month, or a list of clients with their status. Layout that reads best:
 1. A Text first with the takeaway in one or two sentences, key numbers in *bold* (e.g. "Combo CPR อยู่ที่ *13.41 THB* ดีกว่าเป้า 11% แต่ใช้งบ พ.ย. ช้า คาดจบเดือนที่ *58%*").
-2. Fields with exactly 2 grouped Field items side by side, e.g. label "ผลลัพธ์" and label "งบ & Pacing". Each value is 2-4 lines, one metric per line: "CPR: *13.41 THB* ▲ ดีกว่าเป้า 11%". Use ▲/▼ or 🟢/🔴 for direction; keep each line short.
+2. Fields with exactly 2 grouped Field items side by side, e.g. label "ผลลัพธ์" and label "งบ & Pacing". Each value is 2-4 lines, one metric per line, separated by real line breaks (never a literal backslash-n): "CPR: *13.41 THB* ▲ ดีกว่าเป้า 11%". Use ▲/▼ or 🟢/🔴 for direction; keep each line short.
 3. A Table for the breakdown (top 5-8 rows, short column names with units).
-4. A Chart only when it adds something: prefer a bar chart comparing items (e.g. CPR by platform), a line chart for a trend; use pie only for 2-4 shares.
-5. A muted Text last with the source and "ข้อมูลถึง <date>". Add an Actions LinkButton (e.g. "ดูรายงาน") only when you have a real URL. Use plain text for everything else. After it posts, reply with one short line: the "→ ชื่อคน: action" lines if anything needs doing, otherwise a one-line pointer such as "สรุปอยู่ในการ์ดด้านบนครับ". Do not repeat the card's numbers. Your reply must never be empty.\n\nWrite the card in json-render's format below and pass it as jsonl. That format applies only to this argument; your replies to people stay normal text.\n<card_format>\n${CARD_PROMPT}\n</card_format>`,
+4. A muted Text last with the source and "ข้อมูลถึง <date>". Add an Actions LinkButton (e.g. "ดูรายงาน") only when you have a real URL. Use plain text for everything else. After it posts, reply with one short line: the "→ ชื่อคน: action" lines if anything needs doing, otherwise a one-line pointer such as "สรุปอยู่ในการ์ดด้านบนครับ". Do not repeat the card's numbers. Your reply must never be empty.\n\nWrite the card in json-render's format below and pass it as jsonl. That format applies only to this argument; your replies to people stay normal text.\n<card_format>\n${CARD_PROMPT}\n</card_format>`,
 			inputSchema: deps.z.object({
 				jsonl: deps.z.string().describe("The card as JSONL patch lines, one JSON object per line, in the card_format above."),
 			}),
