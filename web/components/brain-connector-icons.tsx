@@ -1,3 +1,4 @@
+import { Megaphone } from "lucide-react"
 import { cn } from "@lib/utils"
 import { Gmail, GoogleDrive, Granola, Notion } from "@ui/assets/icons"
 import { dmSans125ClassName } from "@lib/fonts"
@@ -117,7 +118,26 @@ export function brainConnectorIcon(
 			return <SentryMark className={cn(className, "text-[#FAFAFA]")} />
 		case "posthog":
 			return <PostHogMark className={cn(className, "text-[#F1A82C]")} />
-		default:
-			return <LetterMark label={name} color="#1E293B" />
+		case "social-media-mcp":
+			// Ads Manager across Meta, Google and TikTok, so no single brand's logo.
+			return <Megaphone className={cn(className, "text-[#F59E0B]")} />
+		case "google-workspace":
+			return <GoogleDrive className={className} />
+		default: {
+			const logo = CUSTOM_LOGOS[slug]
+			return logo ? (
+				<img src={logo} alt="" className={cn(className, "rounded-[4px]")} />
+			) : (
+				<LetterMark label={name} color="#1E293B" />
+			)
+		}
 	}
+}
+
+// Logos for the custom MCPs we've connected (files in web/public/connectors).
+const CUSTOM_LOGOS: Record<string, string> = {
+	companybrainmcp: "/connectors/convertcake.png",
+	firecrawl: "/connectors/firecrawl.png",
+	"treg-ai": "/connectors/treg.png",
+	asana: "/connectors/asana.png",
 }
