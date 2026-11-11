@@ -13,4 +13,8 @@ RUN apt-get update \
 RUN npm install -g docx@9.5.1
 ENV NODE_PATH=/usr/local/lib/node_modules
 
+# Sarabun (OFL) is the house font for files the bot makes.
+COPY fonts/sarabun /usr/share/fonts/truetype/sarabun
+RUN fc-cache -f
+
 RUN mkdir -p /workspace
