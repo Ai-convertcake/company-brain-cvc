@@ -15,6 +15,7 @@ import {
 	nexusLearningChannels,
 	observedMemoryScope,
 	channelContextLine,
+	citedMessageIndexes,
 	imagesToDescribe,
 	looksLikeImage,
 	observedMessageText,
@@ -33,6 +34,7 @@ import {
 } from "../turn/retry-state"
 import {
 	getSlackChannelHistoryResult,
+	getSlackMessagePermalink,
 	getSlackThreadHistory,
 	getSlackConversationInfo,
 	type SlackThreadMessage,
@@ -83,6 +85,8 @@ For each cluster: content = the curated relevant material (faithful, dates prese
 The SLACK_CHANNEL line says where the messages come from. When the channel or the messages are about a client or brand, write that client or brand name into every cluster's content (for example "Sukishi: monthly budget stays the same"), so each memory still makes sense outside this channel. Never guess a client the messages and channel don't name.
 
 Keep the URLs and file names that a decision, brief or deliverable refers to, so people can find the source later.
+
+Messages are numbered like [12]. In each cluster's sources, list the numbers of the 1-3 messages it relies on most (for example ["12", "15"]), plus any URL a message itself contains that the cluster refers to. Never invent a URL.
 
 Client channels are full of task traffic: tracker notifications, due dates, revision rounds, "sent", "revised", "done". Do not keep a single task's due date, revision count or current state; it is stale within days. Keep what stays true after the task closes: who does which step, the client's preferences and feedback, decisions and why, prices, budgets, rules, and problems that recur. When you keep a date, it is the day something was decided or changed.`
 
@@ -1061,7 +1065,9 @@ async function processPendingBatch(
 			ws.botUserId,
 			pending,
 		)
-		const promptBatch = buildSlackPromptBatch(named, MAX_CONVO_CHARS)
+		// Numbered so each memory can cite the messages it came from; refs become Slack links below.
+		const numbered = named.map((m, i) => ({ ...m, text: `[${i + 1}] ${m.text}` }))
+		const promptBatch = buildSlackPromptBatch(numbered, MAX_CONVO_CHARS)
 		const fromTs = promptBatch.messages[0]?.ts
 		const throughTs = promptBatch.messages.reduce(
 			(max, message) => ((message.ts ?? "") > max ? (message.ts ?? "") : max),
@@ -1085,11 +1091,35 @@ async function processPendingBatch(
 		const docDate = new Date(Number(throughTs.split(".")[0]) * 1000)
 			.toISOString()
 			.slice(0, 10)
-		const clusters: MemoryDocInput[] = result.object.memories.map(
-			(memory, index) => ({
+		const batchText = promptBatch.prompt
+		const permalinks = new Map<string, string | undefined>()
+		const linksFor = async (refs: string[]): Promise<string[]> => {
+			const links: string[] = []
+			for (const i of citedMessageIndexes(refs, promptBatch.messages.length)) {
+				const ts = named[i]?.ts
+				if (!ts) continue
+				if (!permalinks.has(ts)) {
+					permalinks.set(ts, await getSlackMessagePermalink(botToken, payload.channel, ts))
+				}
+				const link = permalinks.get(ts)
+				if (link) links.push(link)
+			}
+			// Keep real URLs the messages themselves contain (briefs, sheets, Asana); drop invented ones.
+			for (const ref of refs) {
+				if (/^https?:\/\//.test(ref) && batchText.includes(ref) && !links.includes(ref)) links.push(ref)
+			}
+			return links
+		}
+		const withLinks = await Promise.all(
+			result.object.memories.map(async (memory) => ({ memory, links: await linksFor(memory.sources ?? []) })),
+		)
+		if (!isOwned(agent, key, scheduleId)) return "stale"
+		const clusters: MemoryDocInput[] = withLinks.map(
+			({ memory, links }, index) => ({
 				...memory,
+				sources: links,
 				tags: keepBestTags(memory.tags),
-				content: `DOCUMENT_DATE: ${docDate}\n${channelLine ? `${channelLine}\n` : ""}${memory.content}`,
+				content: `DOCUMENT_DATE: ${docDate}\n${channelLine ? `${channelLine}\n` : ""}${memory.content}${links.length ? `\nSOURCE_LINKS: ${links.join(" ")}` : ""}`,
 				internalCustomIdOverride: stableClusterCustomId(
 					ws.orgId,
 					key,

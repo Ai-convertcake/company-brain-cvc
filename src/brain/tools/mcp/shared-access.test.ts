@@ -8,6 +8,7 @@ import {
 	isPilotLockdown,
 	observedMemoryScope,
 	observedMessageText,
+	citedMessageIndexes,
 	nexusChannelKeyword,
 	imagesToDescribe,
 	looksLikeImage,
@@ -165,5 +166,11 @@ describe("pilot lockdown", () => {
 		expect(nexusChannelKeyword(env, "C999")).toBe("a=b")
 		expect(nexusChannelKeyword(env, "C111")).toBeUndefined()
 		expect(nexusChannelKeyword({}, "C0126BTMW80")).toBeUndefined()
+	})
+
+	it("turns cited message numbers into indexes, ignoring junk and duplicates", () => {
+		expect(citedMessageIndexes(["3", "[1]", "#3", "https://x.com", "99", "0"], 5)).toEqual([2, 0])
+		expect(citedMessageIndexes(["1", "2", "3", "4"], 9)).toEqual([0, 1, 2])
+		expect(citedMessageIndexes([], 9)).toEqual([])
 	})
 })

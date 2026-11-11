@@ -51,6 +51,18 @@ export function nexusChannelKeyword(
 	return undefined
 }
 
+// The learner numbers messages [1], [2]…; turn the refs a memory cites into message indexes.
+export function citedMessageIndexes(refs: string[], messageCount: number, max = 3): number[] {
+	const out: number[] = []
+	for (const ref of refs) {
+		const m = /^\s*[[#]?(\d+)\]?\s*$/.exec(ref)
+		const i = m ? Number(m[1]) - 1 : -1
+		if (i >= 0 && i < messageCount && !out.includes(i)) out.push(i)
+		if (out.length >= max) break
+	}
+	return out
+}
+
 const FIRST_READ_DAYS = 30
 
 // Never read further back than 30 days, even for a channel with no saved position.
