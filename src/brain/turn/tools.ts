@@ -679,7 +679,7 @@ export async function assembleTurnTools(
 							return `I can't go through #${hit.name} because you're not a member of it.`
 						}
 						if (access.reason === "private_channel_non_dm_response") {
-							return `I can't answer from #${hit.name} here. DM me and I can answer there.`
+							return `I can't answer from #${hit.name} here. Ask me inside that channel instead.`
 						}
 						if (access.reason === "not_approved_channel") {
 							return `#${hit.name} isn't on the list of channels I'm allowed to search. Ask in #${hit.name} directly, or ask an admin to approve it.`

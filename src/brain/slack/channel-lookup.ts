@@ -668,7 +668,7 @@ export async function runSlackChannelsSearch(
 					!x.access.ok && x.access.reason === "private_channel_non_dm_response",
 			)
 			.map((x) => x.c)
-		return `I can't answer from ${formatChannelNameList(channels)} here. DM me and I can answer there.`
+		return `I can't answer from ${formatChannelNameList(channels)} here. Ask me inside that channel instead.`
 	}
 	if (allowed.length === 0) {
 		if (
@@ -687,7 +687,7 @@ export async function runSlackChannelsSearch(
 					!x.access.ok && x.access.reason === "private_channel_non_dm_response",
 			)
 		) {
-			return "I can't answer from that private channel here. DM me and I can answer there."
+			return "I can't answer from that private channel here. Ask me inside that channel instead."
 		}
 		if (
 			denied.some((x) => !x.access.ok && x.access.reason === "not_org_member")

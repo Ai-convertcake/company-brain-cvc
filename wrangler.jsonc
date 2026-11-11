@@ -33,7 +33,7 @@
 		// The sandbox SDK's RPC transport; artifact downloads stream over it.
 		"SANDBOX_TRANSPORT": "rpc",
 		// Private Slack channels that may use org-shared MCP tools, comma-separated.
-		"SHARED_MCP_CHANNELS": "C0CF6LJUHGR",
+		"SHARED_MCP_CHANNELS": "C0CF6LJUHGR,C0CG8STQNSK",
 		// Private Slack channels the bot may learn from without being mentioned.
 		"LEARNING_CHANNELS": "C08M0F5R50W,C056FDJMHM4",
 		// "on": no DMs, no automatic team invites, no automatic channel joins.
