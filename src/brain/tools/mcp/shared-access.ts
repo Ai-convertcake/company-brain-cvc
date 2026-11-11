@@ -141,6 +141,37 @@ export function documentsToRead<T extends { name?: string; mimetype?: string; si
 		.slice(0, budget)
 }
 
+export type GoogleFileLink = { id: string; kind: "doc" | "sheet" }
+
+// Google Docs and Sheets links in a message, deduped, in order.
+export function googleFileLinks(text: string): GoogleFileLink[] {
+	const out: GoogleFileLink[] = []
+	for (const m of text.matchAll(/docs\.google\.com\/(document|spreadsheets)\/d\/([\w-]{20,})/g)) {
+		const id = m[2] ?? ""
+		if (!out.some((l) => l.id === id)) out.push({ id, kind: m[1] === "document" ? "doc" : "sheet" })
+	}
+	return out
+}
+
+// Composio wraps a download in nested JSON; the file itself sits behind an "s3url".
+export function findS3Url(value: unknown): string | undefined {
+	if (typeof value === "string") {
+		try {
+			return findS3Url(JSON.parse(value))
+		} catch {
+			return undefined
+		}
+	}
+	if (!value || typeof value !== "object") return undefined
+	const url = (value as { s3url?: unknown }).s3url
+	if (typeof url === "string" && url.startsWith("https://")) return url
+	for (const child of Object.values(value)) {
+		const found = findS3Url(child)
+		if (found) return found
+	}
+	return undefined
+}
+
 // Slack can answer a missing scope with an HTML sign-in page, so check the bytes are an image.
 export function looksLikeImage(b: Uint8Array): boolean {
 	const starts = (...bytes: number[]) => bytes.every((x, i) => b[i] === x)

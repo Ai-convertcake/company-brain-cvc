@@ -11,6 +11,8 @@ import {
 	citedMessageIndexes,
 	nexusChannelKeyword,
 	documentsToRead,
+	findS3Url,
+	googleFileLinks,
 	imagesToDescribe,
 	looksLikeImage,
 	observeStartTs,
@@ -184,5 +186,28 @@ describe("documentsToRead", () => {
 		expect(documentsToRead(files, false, 5)).toEqual([xlsx, pdf])
 		expect(documentsToRead(files, false, 1)).toEqual([xlsx])
 		expect(documentsToRead(files, true, 5)).toEqual([])
+	})
+})
+
+describe("google links", () => {
+	it("finds Docs and Sheets ids once each", () => {
+		const text =
+			"brief <https://docs.google.com/document/d/12mPCecm8Wt5RSu_6yI3MjxEii4IHS0aJR4Xt1J069tA/edit?tab=t.0|doc> plan https://docs.google.com/spreadsheets/d/1AbCdEfGhIjKlMnOpQrStUvWxYz_0123456789/edit#gid=0 again https://docs.google.com/document/d/12mPCecm8Wt5RSu_6yI3MjxEii4IHS0aJR4Xt1J069tA/edit"
+		expect(googleFileLinks(text)).toEqual([
+			{ id: "12mPCecm8Wt5RSu_6yI3MjxEii4IHS0aJR4Xt1J069tA", kind: "doc" },
+			{ id: "1AbCdEfGhIjKlMnOpQrStUvWxYz_0123456789", kind: "sheet" },
+		])
+	})
+	it("digs the download link out of Composio's nested reply", () => {
+		const reply = {
+			content: [
+				{
+					type: "text",
+					text: JSON.stringify({ data: { results: [{ response: { data: { downloaded_file_content: { s3url: "https://x.r2.dev/f?sig=1" } } } }] } }),
+				},
+			],
+		}
+		expect(findS3Url(reply)).toBe("https://x.r2.dev/f?sig=1")
+		expect(findS3Url({ content: [{ type: "text", text: "error" }] })).toBeUndefined()
 	})
 })

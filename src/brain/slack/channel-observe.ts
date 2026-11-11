@@ -5,6 +5,9 @@ import { z } from "zod"
 import { learningModel } from "@/config"
 import { downloadSlackFile, type SlackFileRef } from "./attachments"
 import { fileToText, textFileKind } from "./office-text"
+import { callMcpTool, connectMcpClient } from "../tools/mcp/client"
+import { buildMcpCallbackUrl } from "../tools/mcp/connect"
+import { getConnection } from "../tools/mcp/store"
 import { captureException } from "@/lib/capture"
 import { decryptToken } from "@/lib/crypto"
 import { writeMemories } from "../memory"
@@ -18,6 +21,9 @@ import {
 	channelContextLine,
 	citedMessageIndexes,
 	documentsToRead,
+	findS3Url,
+	googleFileLinks,
+	type GoogleFileLink,
 	imagesToDescribe,
 	looksLikeImage,
 	observedMessageText,
@@ -788,26 +794,76 @@ const IMAGE_PROMPT = `Describe this image from a client-work Slack channel for t
 
 const FILE_PROMPT = `Summarize this file from a client-work Slack channel for the team's memory, in at most 150 words. Say what it is (media plan, brief, report, budget, proposal, list) and which client, then the key facts: budgets, KPIs, dates, platforms, decisions, owners. Keep numbers and the original language (Thai or English). Never copy passwords, pass codes, API keys, tokens, phone numbers, emails, ID, account or card numbers, or the names of customers or leads. If the file is about salary, HR, legal, confidential or personal matters, reply only: sensitive, not described.`
 
+async function summarizeFile(name: string, mimetype: string | undefined, data: Uint8Array): Promise<string | null> {
+	const kind = textFileKind(name, mimetype)
+	const content = kind
+		? [{ type: "text" as const, text: `${FILE_PROMPT}\n\n<file name="${name}">\n${(await fileToText(kind, data)).slice(0, 30_000)}\n</file>` }]
+		: [
+				{ type: "text" as const, text: FILE_PROMPT },
+				{ type: "file" as const, data, mediaType: "application/pdf", filename: name },
+			]
+	const { text } = await generateText({
+		model: learningModel(),
+		maxOutputTokens: 400,
+		messages: [{ role: "user", content }],
+	})
+	return text.replace(/\s+/g, " ").trim() || null
+}
+
 // Never throws: a failed file keeps only its file name and must not stall the channel.
 async function describeFile(botToken: string, file: SlackFileRef): Promise<string | null> {
 	try {
 		const data = await downloadSlackFile(botToken, file)
-		if (!data) return null
-		const kind = textFileKind(file.name, file.mimetype)
-		const content = kind
-			? [{ type: "text" as const, text: `${FILE_PROMPT}\n\n<file name="${file.name}">\n${(await fileToText(kind, data)).slice(0, 30_000)}\n</file>` }]
-			: [
-					{ type: "text" as const, text: FILE_PROMPT },
-					{ type: "file" as const, data, mediaType: "application/pdf", filename: file.name },
-				]
-		const { text } = await generateText({
-			model: learningModel(),
-			maxOutputTokens: 400,
-			messages: [{ role: "user", content }],
-		})
-		return text.replace(/\s+/g, " ").trim() || null
+		return data ? await summarizeFile(file.name, file.mimetype, data) : null
 	} catch (err) {
 		console.warn(`[company-brain] channel-observe file skipped: ${err instanceof Error ? err.message : String(err)}`)
+		return null
+	}
+}
+
+const GOOGLE_APP = "google-workspace"
+const MAX_GOOGLE_FILE_BYTES = 10 * 1024 * 1024
+
+// Reads a linked Google Doc or Sheet through the org-shared google-workspace app (Composio).
+// Never throws: no connection, no access or a failed export keeps only the link.
+// ponytail: one MCP connection per link (max 5 per page); share one per page if it gets slow.
+async function describeGoogleFile(env: Env, orgId: string, link: GoogleFileLink): Promise<string | null> {
+	try {
+		const connection = await getConnection(env, orgId, GOOGLE_APP, null)
+		if (!connection || connection.status !== "active") return null
+		const handle = await connectMcpClient(env, connection, buildMcpCallbackUrl(env, "https://company-brain.invalid/"))
+		try {
+			const reply = await callMcpTool(
+				handle,
+				"COMPOSIO_MULTI_EXECUTE_TOOL",
+				{
+					sync_response_to_workbench: false,
+					tools: [
+						{
+							tool_slug: "GOOGLEDRIVE_DOWNLOAD_FILE",
+							arguments: {
+								fileId: link.id,
+								mime_type:
+									link.kind === "doc"
+										? "text/plain"
+										: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+							},
+						},
+					],
+				},
+				{ retryOnTimeout: true },
+			)
+			const url = findS3Url(reply)
+			if (!url) return null
+			const res = await fetch(url)
+			const data = new Uint8Array(await res.arrayBuffer())
+			if (!res.ok || data.byteLength > MAX_GOOGLE_FILE_BYTES) return null
+			return await summarizeFile(link.kind === "doc" ? "google-doc.txt" : "google-sheet.xlsx", undefined, data)
+		} finally {
+			await handle.close()
+		}
+	} catch (err) {
+		console.warn(`[company-brain] channel-observe google file skipped: ${err instanceof Error ? err.message : String(err)}`)
 		return null
 	}
 }
@@ -889,8 +945,9 @@ async function spoolChannelPage(
 		isBotAuthoredMessage(message, botUserId) ? BOT_AUTHOR_LABEL : (message.user ?? "?")
 	// ponytail: at most 10 images described per page of 60 messages; the rest keep only their file name.
 	let imageBudget = 10
-	// ponytail: at most 5 files (Excel, Word, CSV, PDF) summarized per page; the rest keep only their name.
+	// ponytail: at most 5 files (Excel, Word, CSV, PDF, Google Docs/Sheets links) summarized per page; the rest keep only their name.
 	let fileBudget = 5
+	const seenGoogle = new Set<string>()
 	const textOf = async (message: SlackThreadMessage): Promise<string> => {
 		const fromBot = authorOf(message) === BOT_AUTHOR_LABEL
 		const images = imagesToDescribe(message.files, fromBot, imageBudget)
@@ -905,6 +962,15 @@ async function spoolChannelPage(
 		for (const file of docs) {
 			const note = await describeFile(botToken, { ...file, name: file.name ?? "file" })
 			if (note) notes.push(`[file content: ${file.name ?? "file"} — ${note}]`)
+		}
+		if (!fromBot) {
+			for (const link of googleFileLinks(observedMessageText(message))) {
+				if (fileBudget <= 0 || seenGoogle.has(link.id)) continue
+				seenGoogle.add(link.id)
+				fileBudget--
+				const note = await describeGoogleFile(brainAgent(agent).env, agent.name, link)
+				if (note) notes.push(`[google ${link.kind} ${link.id} — ${note}]`)
+			}
 		}
 		return [observedMessageText(message), ...notes].filter(Boolean).join("\n")
 	}
