@@ -5,8 +5,12 @@ FROM docker.io/cloudflare/sandbox:0.12.10-python
 # it needs has to be in the image. LibreOffice turns Word files into PDFs with
 # correct Thai; WeasyPrint overlapped text on this base image.
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends fonts-thai-tlwg libreoffice-writer \
+	&& apt-get install -y --no-install-recommends fonts-thai-tlwg libreoffice-writer poppler-utils \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& python3 -m pip install --no-cache-dir python-docx openpyxl
+
+# Anthropic's docx skill builds Word files with docx-js; pdftoppm (poppler) renders pages to check them.
+RUN npm install -g docx@9.5.1
+ENV NODE_PATH=/usr/local/lib/node_modules
 
 RUN mkdir -p /workspace
