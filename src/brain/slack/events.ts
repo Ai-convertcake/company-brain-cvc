@@ -302,6 +302,23 @@ export function isDebugReactionEvent(ev: SlackEventInner): boolean {
 	return ev.item?.type === "message" && Boolean(ev.item.channel && ev.item.ts)
 }
 
+// 👍/👎 on an answer, or ❌ on a line of the morning memory review.
+export const BRAIN_REJECT_REACTION = "x"
+
+// Slack sends "+1", "thumbsup", or either with a skin tone ("+1::skin-tone-3").
+export function voteFromReaction(reaction: string | undefined): "up" | "down" | undefined {
+	const name = (reaction ?? "").split("::")[0]
+	if (name === "+1" || name === "thumbsup") return "up"
+	if (name === "-1" || name === "thumbsdown") return "down"
+	return undefined
+}
+
+export function isFeedbackReactionEvent(ev: SlackEventInner): boolean {
+	if (ev.type !== "reaction_added") return false
+	if (!voteFromReaction(ev.reaction) && ev.reaction !== BRAIN_REJECT_REACTION) return false
+	return ev.item?.type === "message" && Boolean(ev.item.channel && ev.item.ts)
+}
+
 export const BRAIN_MUTE_REACTION = "black_square_for_stop"
 
 export function isMuteReactionEvent(ev: SlackEventInner): boolean {

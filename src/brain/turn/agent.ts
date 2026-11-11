@@ -567,6 +567,10 @@ export class CompanyBrainAgent extends Agent<Env, CompanyBrainState> {
 		return (await this.loadImpl()).runNexusLearning(this)
 	}
 
+	async runMemoryReview(): Promise<void> {
+		return (await this.loadImpl()).runMemoryReview(this)
+	}
+
 	// A cron-shaped invocation can only be a retired daily schedule, and boot-time
 	// cleanup can lose the race to a due alarm, so refuse it here.
 	async runAutoResearch(

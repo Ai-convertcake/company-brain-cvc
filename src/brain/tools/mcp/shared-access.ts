@@ -252,3 +252,25 @@ export function isApprovedSearchChannel(
 		isApprovedLearningChannel(env, channelId)
 	)
 }
+
+export type ReviewInput = {
+	learned: Array<{ channel: string; title: string }>
+	up: number
+	down: number
+	downLinks: string[]
+}
+
+/** The morning post's parent text. Kept pure so it can be tested. */
+export function reviewSummaryText(input: ReviewInput): string {
+	const channels = new Set(input.learned.map((m) => m.channel)).size
+	const lines = [
+		input.learned.length
+			? `*เมื่อคืนบอทเรียนรู้ ${input.learned.length} เรื่อง จาก ${channels} ช่อง* รายการอยู่ในเธรดนี้ ถ้าข้อไหนผิดหรือไม่ควรจำ กด ❌ ที่ข้อนั้น บอทจะลบทิ้งให้ครับ`
+			: "*เมื่อคืนบอทไม่ได้เรียนรู้เรื่องใหม่จากช่องที่แชร์ทั้งทีม*",
+	]
+	if (input.up || input.down) {
+		lines.push(`ฟีดแบ็กคำตอบเมื่อวาน: 👍 ${input.up}  👎 ${input.down}`)
+		for (const link of input.downLinks) lines.push(`• 👎 <${link}|ดูคำตอบ>`)
+	}
+	return lines.join("\n")
+}

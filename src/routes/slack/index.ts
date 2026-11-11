@@ -34,6 +34,7 @@ import {
 	isDebugReactionEvent,
 	isDirectConversationEvent,
 	isDirectMessage,
+	isFeedbackReactionEvent,
 	isMuteReactionEvent,
 	isNameWakeCandidate,
 	SlackEnvelopeSchema,
@@ -685,7 +686,7 @@ export const slackRoutes = new Hono<AppContext>()
 			return c.json({ ok: true })
 		}
 
-		if (isDebugReactionEvent(event) || isMuteReactionEvent(event)) {
+		if (isDebugReactionEvent(event) || isMuteReactionEvent(event) || isFeedbackReactionEvent(event)) {
 			const ws = await loadWorkspace(c.env, team_id)
 			if (!ws) return c.json({ ok: true })
 			logSlackEvent("reaction", event, {

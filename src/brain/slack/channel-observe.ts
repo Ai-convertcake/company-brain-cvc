@@ -51,6 +51,7 @@ import {
 import { mentionedUserIds } from "./events"
 import { getCachedSlackUserProfiles } from "./profile-cache"
 import { buildSlackPromptBatch } from "./prompt-batch"
+import { recordLearnedForReview } from "./feedback"
 import { getWorkspaceByTeamId, type SlackOrg } from "./workspace"
 
 const OBSERVE_DELAY_SECONDS = 3 * 60
@@ -1273,6 +1274,14 @@ async function processPendingBatch(
 			},
 		)
 		if (out.written !== out.total) return "retry"
+		if (!isPrivateChannel) {
+			recordLearnedForReview(
+				agent,
+				payload.teamId,
+				payload.channel,
+				persisted.clusters.map((c) => ({ title: c.title, customId: c.internalCustomIdOverride })),
+			)
+		}
 		console.log(
 			`[company-brain] channel-observe org=${ws.orgId} channel=${payload.channel} messages=${persisted.messageCount} clusters=${persisted.clusters.length} written=${out.written}/${out.total}`,
 		)

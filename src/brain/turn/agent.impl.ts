@@ -75,6 +75,7 @@ export {
 } from "../memory/workspace-prompt"
 export { computeInteractionContext } from "../prompt/build"
 export { runChannelObserve, runNexusLearning } from "../slack/channel-observe"
+export { runMemoryReview } from "../slack/feedback"
 export {
 	createAutomation,
 	deleteAutomation,
@@ -118,7 +119,11 @@ export {
 import type { Schedule } from "agents"
 import { flushBrainTelemetry } from "../observability"
 import { runSlackChimeIn } from "../slack/chime"
-import { isMuteReactionEvent, type SlackTurnMessage } from "../slack/events"
+import { isFeedbackReactionEvent, isMuteReactionEvent, type SlackTurnMessage } from "../slack/events"
+import {
+	ensureMemoryReviewSchedule,
+	runSlackFeedbackReaction,
+} from "../slack/feedback"
 import {
 	finalizeInterruptedSlackTurn as finalizeInterruptedSlackTurnImpl,
 	runSlackApprovalDecision,
@@ -187,6 +192,7 @@ export async function onStart(agent: CompanyBrainAgent): Promise<void> {
 	const repairs = await Promise.allSettled([
 		reconcileChannelObserveSchedules(agent),
 		ensureNexusLearningSchedule(agent),
+		ensureMemoryReviewSchedule(agent),
 		reconcilePostTurnReflectSchedules(agent),
 		reconcileTeamInviteSchedule(agent),
 		cancelAutoResearchSchedules(agent),
@@ -547,6 +553,10 @@ export async function onSlackReaction(
 	try {
 		if (isMuteReactionEvent(msg.event)) {
 			await runSlackMuteReaction(agent, msg)
+			return
+		}
+		if (isFeedbackReactionEvent(msg.event)) {
+			await runSlackFeedbackReaction(agent, msg)
 			return
 		}
 		await runSlackDebugReaction(agent, msg)
