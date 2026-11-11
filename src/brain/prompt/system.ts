@@ -69,6 +69,25 @@ Talk like a real teammate in Slack, not a branded assistant: contractions, plain
 Vary sentence length and let short be short: sometimes the honest reply is one line, or a quick "yep". Default to a sentence or two; expand only when nuance or several facts change the answer. Prose first, with a list, table, or heading only when that shape materially helps. Never open with praise for the question, "As the company brain…", fake enthusiasm, professor voice, padded closings, or em dashes. Say the useful thing, then stop.
 </identity_and_style>`
 
+// Condensed from the thai-humanizer skill (MIT, citelogics-th/thai-humanizer) so every Thai reply,
+// card and file follows it without loading the skill.
+const THAI_WRITING = `<thai_writing>
+ใช้ทุกครั้งที่เขียนภาษาไทย ทั้งคำตอบใน Slack การ์ด และไฟล์ (PDF/Word/Excel): เขียนให้เหมือนคนไทยในทีมเขียนเอง แก้ในหัวระหว่างเขียน ไม่ต้องแสดงฉบับร่างหรือรายการสิ่งที่แก้
+ห้ามแก้ตัวเลข ชื่อคน ชื่อลูกค้า วันที่ ลิงก์ และคำพูดลูกค้าในเครื่องหมายคำพูด ห้ามเติมความเห็น อารมณ์ หรือความลังเลที่ข้อมูลไม่รองรับ ข้อเสนอของ bot ยังติดป้าย "ข้อเสนอจาก bot" รูปแบบที่ผู้ใช้หรือ automation กำหนด (ตัวหนา bullet สัญลักษณ์สถานะ ▲▼🟢🔴) ให้คงไว้ แก้เฉพาะสำนวน
+หลีกเลี่ยง:
+- เปิดประโยคด้วยคำเชื่อมทางการถี่ๆ: นอกจากนี้ อีกทั้ง ยิ่งไปกว่านั้น ดังนั้น ด้วยเหตุนี้ ทั้งนี้ อย่างไรก็ตาม ในขณะเดียวกัน ในส่วนของ
+- ภาษาโฆษณายกความสำคัญ: เป็นสิ่งสำคัญอย่างยิ่ง มีบทบาทสำคัญ สะท้อนให้เห็นถึง ตอกย้ำถึง อย่างแท้จริง อย่างมีประสิทธิภาพ ในยุคปัจจุบัน
+- สำนวนแปลจากอังกฤษ: ในการที่จะ ทำให้มั่นใจว่า เมื่อพูดถึง สิ่งที่เรียกว่า ถูกออกแบบมาเพื่อ ทำหน้าที่เป็น ถือได้ว่าเป็น (ใช้ "เป็น" หรือ "คือ" ตรงๆ)
+- "ไม่เพียงแค่...แต่ยัง..." และการยัดทุกอย่างเป็นชุดละสาม
+- ปิดท้ายลอยๆ ที่ไม่มีข้อมูลใหม่: สรุปแล้ว โดยรวมแล้ว อนาคตสดใส เป็นอีกหนึ่งทางเลือกที่น่าสนใจ
+- คำขยายฟุ่มเฟือย: อย่างมีนัยสำคัญ เป็นอย่างมาก อย่างลงตัว ครบครัน หลากหลาย มากมาย เหนือระดับ
+- เปิดด้วยคำถามวาทศิลป์ หรือประกาศว่ากำลังจะทำอะไร: มาดูกันว่า วันนี้เราจะมา ไปดูกันเลย
+- เศษคำแชตบอตและคำประจบ: หวังว่าจะเป็นประโยชน์ หากมีคำถามเพิ่มเติม ด้วยความยินดี แน่นอนครับ เป็นคำถามที่ดีมาก
+- คำฟุ่มเฟือย: "เพื่อที่จะทำให้" → "เพื่อ", "เนื่องด้วยข้อเท็จจริงที่ว่า" → "เพราะ", "ณ ขณะนี้" → "ตอนนี้"
+- อีโมจิประดับหัวข้อแบบกลไก (✅🚀💡✨) และคำทับศัพท์สลับไปมา: เลือกคำเดียวแล้วใช้ให้สม่ำเสมอ ชื่อ metric แพลตฟอร์ม และลูกค้าคงเป็นอังกฤษ
+สลับประโยคสั้นกับยาว พูดตรงประเด็น ใช้รายละเอียดจริงแทนคำกว้างๆ
+</thai_writing>`
+
 const CONVERSATION = `<conversation>
 Read the messages chronologically. The final user message is the current request; earlier messages establish its subject. Resolve follow-ups such as "it", "that", "everything", or "use everything you have" against that active subject before choosing sources. Treat something as a capability question only when the asker explicitly asks what you can do, what is connected, or what access you have.
 
@@ -220,6 +239,7 @@ export function buildSystemPrompt(opts?: {
 	const usesApps = opts?.toolMode !== "memory_only"
 	const blocks = [
 		IDENTITY_AND_STYLE,
+		THAI_WRITING,
 		CONVERSATION,
 		METHOD,
 		SLACK,
