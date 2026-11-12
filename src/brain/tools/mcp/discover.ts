@@ -10,6 +10,7 @@ import {
 	scoreCatalogMethod,
 	stableConnectorNames,
 } from "./catalog"
+import { InvalidClientError, InvalidGrantError } from "@modelcontextprotocol/sdk/server/auth/errors.js"
 import { McpReauthRequiredError } from "./oauth-provider"
 import type { ConnectedAppServerRef } from "./pause"
 import { connectToolProvider, type ToolProviderHandle } from "./provider"
@@ -231,7 +232,12 @@ async function connectSource(args: {
 			handle: await connectToolProvider(args.env, connection, args.callbackUrl),
 		}
 	} catch (error) {
-		if (error instanceof McpReauthRequiredError) {
+		// The server no longer knows our client or refresh token: only a new sign-in fixes that.
+		const reauth =
+			error instanceof McpReauthRequiredError ||
+			error instanceof InvalidClientError ||
+			error instanceof InvalidGrantError
+		if (reauth) {
 			await markConnectionError(
 				args.env,
 				connection.id,
@@ -240,20 +246,20 @@ async function connectSource(args: {
 		}
 		throw new ToolError({
 			kind:
-				error instanceof McpReauthRequiredError
+				reauth
 					? "auth_required"
 					: "unavailable",
 			tool: args.source.ref.serverSlug,
 			message:
-				error instanceof McpReauthRequiredError
+				reauth
 					? `${args.source.displayName} needs to be reconnected.`
 					: `${args.source.displayName} is temporarily unavailable.`,
-			detail: error instanceof Error ? error.message : String(error),
+			detail: error instanceof Error ? `${error.name}: ${error.message}` : String(error),
 			suggestion:
-				error instanceof McpReauthRequiredError
+				reauth
 					? `Reconnect ${args.source.displayName}, then retry.`
 					: "Retry once later; if the app is still unavailable, report that the live lookup failed.",
-			retryable: !(error instanceof McpReauthRequiredError),
+			retryable: !reauth,
 			traceId: args.traceId,
 		})
 	}
