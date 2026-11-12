@@ -119,6 +119,7 @@ export function brainConnectorIcon(
 		case "posthog":
 			return <PostHogMark className={cn(className, "text-[#F1A82C]")} />
 		case "social-media-mcp":
+		case "social-media-ads-mcp":
 			// Ads Manager across Meta, Google and TikTok, so no single brand's logo.
 			return <Megaphone className={cn(className, "text-[#F59E0B]")} />
 		case "google-workspace":

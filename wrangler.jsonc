@@ -44,7 +44,7 @@
 		// Learn only posts containing this text (and their threads) in these channels: "CHANNEL=text;CHANNEL=text".
 		"NEXUS_CHANNEL_FILTERS": "C0126BTMW80=Sentiment Watch",
 		// MCP servers we run and know are read-only.
-		"READ_ONLY_MCP_SERVERS": "companybrainmcp,social-media-mcp"
+		"READ_ONLY_MCP_SERVERS": "companybrainmcp,social-media-mcp,social-media-ads-mcp"
 	},
 	"observability": {
 		"enabled": true
